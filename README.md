@@ -142,4 +142,3 @@ For questions or suggestions, please contact [Your Name or Email].
 
 *Thank you for checking out this project!*
 EOF
-```
