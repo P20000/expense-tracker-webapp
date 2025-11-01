@@ -2,6 +2,7 @@ import json
 import os
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, redirect, url_for
+import uuid # NEW: Import UUID for unique expense IDs
 
 # --- Configuration and Data Persistence ---
 DATA_FILE = 'data.json'
@@ -13,7 +14,12 @@ def load_data():
     if os.path.exists(DATA_FILE) and os.path.getsize(DATA_FILE) > 0:
         with open(DATA_FILE, 'r') as f:
             try:
-                return json.load(f)
+                data = json.load(f)
+                # Ensure existing expenses have an ID if they were loaded from old structure
+                for expense in data.get('expenses', []):
+                    if 'id' not in expense:
+                        expense['id'] = str(uuid.uuid4())
+                return data
             except json.JSONDecodeError:
                 # Handle corrupted JSON file
                 print(f"Warning: {DATA_FILE} is corrupted. Starting with default data.")
@@ -108,8 +114,6 @@ def set_budget():
                 except ValueError:
                     return jsonify({"message": f"Invalid amount provided for category '{cat}'."}), 400
             else:
-                # If a category is missing, assume 0.0 or keep existing if not explicitly setting all
-                # For simplicity, we assume the frontend sends all current categories.
                 validated_budget[cat] = app_data['budget'].get(cat, 0.0)
 
         app_data['budget'] = validated_budget
@@ -143,6 +147,7 @@ def add_expense():
         date = datetime.now().strftime("%Y-%m-%d")
         
         new_expense = {
+            "id": str(uuid.uuid4()), # NEW: Assign a unique ID to the expense
             "category": category,
             "amount": amount,
             "date": date,
@@ -156,6 +161,29 @@ def add_expense():
     except Exception as e:
         print(f"Expense Error: {e}")
         return jsonify({"message": f"An error occurred: {str(e)}"}), 500
+
+# NEW ENDPOINT: Handle DELETE requests for expenses by ID
+@app.route('/api/expense/<expense_id>', methods=['DELETE'])
+def delete_expense_api(expense_id):
+    """Deletes an expense transaction by ID."""
+    global app_data
+    
+    # Store the initial length to check if a deletion occurred
+    original_length = len(app_data['expenses'])
+    
+    # Filter out the expense with the matching ID
+    # Note: expense IDs are expected to be strings (UUIDs)
+    app_data['expenses'] = [
+        e for e in app_data['expenses'] 
+        if e.get('id') != expense_id
+    ]
+
+    # Check if the list length changed
+    if len(app_data['expenses']) == original_length:
+        return jsonify({"message": f"Expense with ID {expense_id} not found."}), 404
+
+    save_data(app_data)
+    return jsonify({"message": "Expense successfully removed!"}), 200
 
 
 @app.route('/api/report', methods=['GET'])
@@ -200,7 +228,7 @@ def generate_report():
         "report": report, 
         "total_spent": total_spent, 
         "total_budget": total_budget,
-        "expenses_log": current_expenses
+        "expenses_log": current_expenses # This now includes the unique 'id' field
     })
 
 
