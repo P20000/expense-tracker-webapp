@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Expense Tracker | Expressive Design</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        
+        /* --- EXPRESSIVE / VIBRANT THEME STYLES --- */
+        
+        /* Shared Colors & Variables */
+        :root {
+            /* Expressive Palettes */
+            --color-surface: #1e0934; /* Deep, dark purple */
+            --color-background: #12051f; /* Even darker base */
+            --color-primary: #7c3aed; /* Vibrant Purple for main buttons */
+            --color-secondary: #be185d; /* Fuchsia for accents */
+            --color-on-surface: #f3e8ff; /* Light, contrasting text */
+            --color-accent-lime: #a3e635; /* Electric Lime Green (Success/Over Budget) */
+            --color-text-dark: #1f2937; /* New variable for dark text */
+            --radius-large: 1.5rem; /* rounded-3xl */
+        }
+
+        /* Base Body Styles */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--color-background); 
+            color: var(--color-on-surface); 
+            transition: background-color 0.4s, color 0.4s;
+        }
+
+        /* Card and Surface Styles (High Elevation) */
+        .card-bg {
+            background-color: var(--color-surface);
+            border: 1px solid rgba(124, 58, 237, 0.3); /* Purple accent border */
+            border-radius: var(--radius-large);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); 
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        
+        /* --- FIX: Light Mode Overrides for High Contrast --- */
+        [data-theme="light"] {
+            /* Adjusting the entire palette for light mode */
+            --color-surface: #f3e8ff; /* Light Lavender (Card Background) */
+            --color-background: #ffffff; /* White base (Body Background) */
+            --color-on-surface: var(--color-text-dark); /* Dark text on light background */
+        }
+        
+        /* FIX: Ensures all text within the card switches to dark in light mode */
+        [data-theme="light"] .card-bg, 
+        [data-theme="light"] .card-bg * {
+            color: var(--color-text-dark) !important;
+        }
+        
+        /* Exception: Override primary accent colors back to their vibrant state */
+        [data-theme="light"] .text-primary { color: var(--color-primary) !important; }
+        [data-theme="light"] .text-secondary { color: var(--color-secondary) !important; }
+        [data-theme="light"] .text-lime { color: var(--color-accent-lime) !important; }
+
+
+        [data-theme="light"] .card-bg {
+            border: 1px solid #d8b4fe; /* Lighter purple border */
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); 
+        }
+
+        /* --- Input & Select FIX for High Contrast --- */
+        input:not([type="submit"]), select {
+            padding: 0.75rem; 
+            border-radius: 0.75rem !important; 
+            border-width: 1px;
+            /* MD3 Outlined/Filled style adapted to dark expressive theme */
+            background-color: rgba(255, 255, 255, 0.05) !important; 
+            color: var(--color-on-surface) !important; 
+            border-color: var(--color-primary) !important; 
+            /* Placeholder text color */
+            --tw-placeholder-opacity: 0.6;
+        }
+        
+        /* Dark mode overrides for inputs/selects */
+        [data-theme="dark"] input:not([type="submit"]), [data-theme="dark"] select {
+            background-color: rgba(255, 255, 255, 0.05) !important; 
+            border-color: var(--color-primary) !important; 
+            color: var(--color-on-surface) !important;
+        }
+        
+        /* Light mode overrides for inputs/selects (Ensures white background on light card) */
+        [data-theme="light"] input:not([type="submit"]), [data-theme="light"] select {
+            background-color: #ffffff !important; 
+            border-color: #a78bfa !important; /* Lighter purple border */
+            color: var(--color-text-dark) !important; /* Dark text */
+        }
+
+
+        /* Buttons (Filled primary) */
+        .btn-primary {
+            background-color: var(--color-primary);
+            color: var(--color-on-surface);
+            font-weight: 700;
+            border-radius: 9999px; /* full rounded pill */
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        .btn-primary:hover {
+            background-color: #9333ea; /* Lighter hover */
+            transform: translateY(-1px);
+        }
+
+        /* Danger/Remove Button (Fuchsia accent) */
+        .btn-danger {
+            background-color: var(--color-secondary);
+            color: var(--color-on-surface);
+            font-weight: 700;
+            border-radius: 9999px;
+        }
+        .btn-danger:hover {
+            background-color: #e82c78; /* Lighter hover */
+        }
+
+        /* Accent Text Colors */
+        .text-primary { color: var(--color-primary); }
+        .text-secondary { color: var(--color-secondary); }
+        .text-lime { color: var(--color-accent-lime); }
+
+        /* Report Over Budget Status */
+        .status-over { background-color: var(--color-secondary); color: var(--color-on-surface); }
+        .status-within { background-color: var(--color-accent-lime); color: var(--color-surface); font-weight: 700;}
+        
+        /* Light Mode Specific Status Colors */
+        [data-theme="light"] .status-over { background-color: var(--color-secondary); color: white; }
+        [data-theme="light"] .status-within { background-color: var(--color-accent-lime); color: var(--color-text-dark); }
+        
+        /* ================================== */
+        /* --- SCROLLBAR STYLING (Webkit) --- */
+        /* ================================== */
+        
+        /* 1. Width */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        /* 2. Track (The background of the scrollbar) */
+        ::-webkit-scrollbar-track {
+            background: var(--color-background);
+            border-radius: 10px;
+        }
+        
+        /* Light Mode Track Override */
+        [data-theme="light"] ::-webkit-scrollbar-track {
+            background: #f0f0f0; /* Very light gray */
+        }
+
+        /* 3. Thumb (The draggable part) */
+        ::-webkit-scrollbar-thumb {
+            background: var(--color-primary); /* Vibrant Purple */
+            border-radius: 10px;
+        }
+
+        /* Thumb Hover State */
+        ::-webkit-scrollbar-thumb:hover {
+            background: #9333ea; /* Lighter Purple on hover */
+        }
+
+        /* Light Mode Thumb Override */
+        [data-theme="light"] ::-webkit-scrollbar-thumb {
+            background: var(--color-primary); /* Keep purple */
+        }
+        [data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+            background: #be185d; /* Fuchsia on hover for light mode contrast */
+        }
+
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <header class="text-center mb-10 card-bg p-6 rounded-3xl relative">
+            <div class="flex items-center justify-center space-x-4">
+                <h1 class="text-4xl font-extrabold text-lime dark:text-lime-300">
+                    PAYGR<span class="text-secondary dark:text-purple-300">OUND</span> TRACKER
+                </h1>
+            </div>
+            <p class="text-sm mt-1 text-gray-300 dark:text-purple-200">Expressive financial control, styled by you.</p>
+
+            <button id="theme-toggle" onclick="toggleTheme()" class="absolute top-4 right-4 p-3 rounded-full bg-secondary text-white hover:scale-105 transition duration-150 shadow-lg" title="Toggle Theme">
+                <svg id="moon-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:none;">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                </svg>
+                <svg id="sun-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:none;">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.354 5.354l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+            </button>
+        </header>
+
+        <div id="alert-box" class="fixed top-4 right-4 z-50 transition-opacity duration-300 opacity-0 pointer-events-none">
+            </div>
+
+        <div id="delete-modal" class="hidden fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center transition-opacity duration-300">
+            <div class="card-bg p-8 rounded-3xl shadow-2xl max-w-sm mx-4 transform scale-95 transition-transform border-4 border-secondary">
+                <h3 class="text-2xl font-bold mb-4 text-secondary">Confirm Deletion</h3>
+                <p class="mb-6 text-gray-300" id="modal-message"></p>
+                <div class="flex justify-end space-x-3">
+                    <button onclick="closeDeleteModal()" class="px-4 py-2 text-sm font-semibold rounded-full text-white hover:bg-gray-700 transition">Cancel</button>
+                    <button id="confirm-delete-btn" class="btn-danger px-4 py-2 text-sm shadow-xl">Delete Forever</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-1 space-y-8">
+                
+                <div class="card-bg p-6 rounded-3xl shadow-2xl">
+                    <h2 class="text-2xl font-semibold mb-4 text-lime">Budget Categories</h2>
+                    
+                    <div id="category-list" class="flex flex-wrap gap-2 mb-4 min-h-[30px] p-2 border border-dashed border-primary rounded-xl bg-opacity-10 bg-primary">
+                        </div>
+
+                    <div class="flex space-x-2">
+                        <input type="text" id="new-category-name" placeholder="New Category Name" class="flex-grow focus:ring-2 focus:ring-lime focus:border-lime">
+                        <button onclick="handleCategoryAttempt('add')" class="bg-lime text-surface p-3 rounded-full font-bold hover:bg-opacity-90 transition duration-150 shadow-md flex-shrink-0">
+                            + Add
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card-bg p-6 rounded-3xl shadow-2xl">
+                    <h2 class="text-2xl font-semibold mb-4 text-secondary">Set Monthly Budget (₹)</h2>
+                    <form id="budget-form">
+                        <div id="budget-inputs" class="space-y-3 mb-4">
+                            </div>
+                        <button type="submit" class="w-full btn-primary p-3 shadow-lg focus:ring-4 focus:ring-primary/50">
+                            Save Budget
+                        </button>
+                    </form>
+                </div>
+
+                <div class="card-bg p-6 rounded-3xl shadow-2xl">
+                    <h2 class="text-2xl font-semibold mb-4 text-primary">Add Expense (₹)</h2>
+                    <form id="expense-form" class="space-y-4">
+                        <div>
+                            <label for="expense-category" class="block text-sm font-medium text-purple-300 mb-1">Category</label>
+                            <select id="expense-category" name="category" required class="w-full focus:ring-2 focus:ring-lime focus:border-lime"></select>
+                        </div>
+                        <div>
+                            <label for="expense-amount" class="block text-sm font-medium text-purple-300 mb-1">Amount (₹)</label>
+                            <input type="number" id="expense-amount" name="amount" required step="0.01" min="0.01" placeholder="e.g., 500.00" class="w-full focus:ring-2 focus:ring-lime focus:border-lime">
+                        </div>
+                        <div>
+                            <label for="expense-description" class="block text-sm font-medium text-purple-300 mb-1">Description (Optional)</label>
+                            <input type="text" id="expense-description" name="description" placeholder="e.g., Coffee at new cafe" class="w-full focus:ring-2 focus:ring-lime focus:border-lime">
+                        </div>
+                        <button type="submit" class="w-full bg-secondary text-white p-3 rounded-full font-bold hover:bg-opacity-90 transition duration-150 shadow-lg focus:ring-4 focus:ring-secondary/50">
+                            Add Expense
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2 space-y-8">
+                
+                <div class="card-bg p-6 rounded-3xl shadow-2xl">
+                    <h2 class="text-2xl font-semibold mb-4 text-lime flex justify-between items-center">
+                        <span class="flex items-center"><span class="mr-2"></span> Monthly Report</span>
+                        <div id="overall-summary" class="text-lg font-medium text-purple-300"></div>
+                    </h2>
+                    
+                    <div id="report-summary" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        </div>
+                </div>
+
+                <div class="card-bg p-6 rounded-3xl shadow-2xl">
+                    <h2 class="text-2xl font-semibold mb-4 text-secondary flex items-center">
+                        <span class="mr-2"></span> Transaction Log
+                    </h2>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-purple-700">
+                            <thead class="bg-primary/20">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-purple-300 uppercase tracking-wider rounded-tl-xl">Date</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-purple-300 uppercase tracking-wider">Category</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-purple-300 uppercase tracking-wider">Description</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-purple-300 uppercase tracking-wider rounded-tr-xl">Amount (₹)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="expense-log-body" class="divide-y divide-primary/30">
+                                </tbody>
+                        </table>
+                    </div>
+                    <p id="empty-expense-log" class="text-center py-4 text-purple-400 hidden">No expenses recorded yet. Time to spend!</p>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Theme Management (Hyper-Personalization)
+        // Defaulting to dark mode for the expressive theme
+        let currentTheme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+
+        function setIconVisibility(theme) {
+            const moonIcon = document.getElementById('moon-icon');
+            const sunIcon = document.getElementById('sun-icon');
+            if (theme === 'dark') {
+                moonIcon.style.display = 'block';
+                sunIcon.style.display = 'none';
+            } else {
+                moonIcon.style.display = 'none';
+                sunIcon.style.display = 'block';
+            }
+        }
+        
+        function toggleTheme() {
+            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            localStorage.setItem('theme', currentTheme);
+            setIconVisibility(currentTheme);
+        }
+
+        // Initialize icon visibility on load
+        setIconVisibility(currentTheme);
+
+        // Global utility function to display alerts
+        function showAlert(message, type = 'success') {
+            const alertBox = document.getElementById('alert-box');
+            let bgColor, icon;
+            
+            switch (type) {
+                case 'success':
+                    // Use lime accent for success
+                    bgColor = 'bg-lime text-surface';
+                    icon = '✓';
+                    break;
+                case 'error':
+                    // Use fuchsia accent for error
+                    bgColor = 'bg-secondary text-white';
+                    icon = '✕';
+                    break;
+                case 'warning':
+                    // Use purple primary for warning
+                    bgColor = 'bg-primary text-white';
+                    icon = '!';
+                    break;
+                default:
+                    bgColor = 'bg-primary text-white';
+                    icon = 'i';
+            }
+
+            const alertHtml = `
+                <div class="max-w-xs ${bgColor} p-3 rounded-full shadow-xl flex items-center space-x-2">
+                    <span class="font-bold text-xl">${icon}</span>
+                    <p class="text-sm">${message}</p>
+                </div>
+            `;
+            
+            alertBox.innerHTML = alertHtml;
+            alertBox.classList.remove('opacity-0', 'pointer-events-none');
+            alertBox.classList.add('opacity-100');
+
+            setTimeout(() => {
+                alertBox.classList.remove('opacity-100');
+                alertBox.classList.add('opacity-0', 'pointer-events-none');
+            }, 3000);
+        }
+
+        // --- Core Application Logic ---
+
+        // Helper for making API calls
+        async function apiFetch(url, method = 'GET', body = null) {
+            const options = {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            };
+            if (body) {
+                options.body = JSON.stringify(body);
+            }
+
+            try {
+                const response = await fetch(url, options);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    showAlert(data.message || `API Error: ${response.statusText}`, 'error');
+                    return null;
+                }
+                return data;
+            } catch (error) {
+                console.error("Fetch Error:", error);
+                showAlert(`Network or server error: ${error.message}`, 'error');
+                return null;
+            }
+        }
+
+        // ------------------------------------------
+        // RENDER FUNCTIONS (Update UI based on state)
+        // ------------------------------------------
+
+        function renderCategories(categories, currentBudget) {
+            const categoryListDiv = document.getElementById('category-list');
+            const budgetInputsDiv = document.getElementById('budget-inputs');
+            const expenseCategorySelect = document.getElementById('expense-category');
+
+            categoryListDiv.innerHTML = '';
+            budgetInputsDiv.innerHTML = '';
+            expenseCategorySelect.innerHTML = ''; // Clear previous options
+
+            if (categories.length === 0) {
+                // Adjusting dynamic text color for light mode visibility
+                const textColorClass = document.documentElement.getAttribute('data-theme') === 'light' ? 'text-gray-500' : 'text-purple-400';
+                categoryListDiv.innerHTML = `<p class="text-sm ${textColorClass} italic">No categories defined yet.</p>`;
+            }
+
+            categories.forEach(cat => {
+                // 1. Category List Display (Vibrant Chip)
+                const catElement = document.createElement('div');
+                catElement.className = 'flex items-center bg-primary text-white text-sm font-medium px-3 py-2 rounded-full shadow-lg';
+                catElement.innerHTML = `
+                    <span>${cat}</span>
+                    <button onclick="handleCategoryAttempt('remove', '${cat}')" class="ml-2 text-white hover:text-secondary transition duration-150">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                `;
+                categoryListDiv.appendChild(catElement);
+
+                // 2. Budget Input Form
+                const budgetDiv = document.createElement('div');
+                budgetDiv.className = 'flex items-center space-x-2';
+                const currentAmount = currentBudget[cat] || 0;
+                
+                // Determine label color dynamically
+                const labelTextColor = document.documentElement.getAttribute('data-theme') === 'light' ? 'text-gray-700' : 'text-purple-300';
+
+                budgetDiv.innerHTML = `
+                    <label class="w-1/3 ${labelTextColor} font-medium">${cat}:</label>
+                    <input type="number" name="${cat}" value="${currentAmount.toFixed(2)}" step="0.01" min="0" required 
+                           class="w-2/3 focus:ring-2 focus:ring-lime focus:border-lime text-right">
+                `;
+                budgetInputsDiv.appendChild(budgetDiv);
+
+                // 3. Expense Form Select
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                expenseCategorySelect.appendChild(option);
+            });
+        }
+
+        function renderReport(reportData) {
+            const summaryDiv = document.getElementById('report-summary');
+            summaryDiv.innerHTML = '';
+            
+            const totalSummary = document.getElementById('overall-summary');
+            // Use lime for positive/within budget, secondary (fuchsia) for overspent
+            const statusClass = reportData.total_spent > reportData.total_budget ? 'text-secondary' : 'text-lime';
+            const totalBudgetTextColor = document.documentElement.getAttribute('data-theme') === 'light' ? 'text-gray-700' : 'text-purple-300';
+            
+            totalSummary.innerHTML = `Budget: <span class="${totalBudgetTextColor}">₹${reportData.total_budget.toFixed(2)}</span> | Spent: <span class="${statusClass} font-bold">₹${reportData.total_spent.toFixed(2)}</span>`;
+
+            reportData.report.forEach(item => {
+                const isOverBudget = item.difference > 0;
+                const progressBarColor = isOverBudget ? 'bg-secondary' : 'bg-lime';
+                
+                // Card colors are defined by success/danger accent colors
+                const containerClasses = isOverBudget ? 'status-over border-secondary' : 'status-within border-lime';
+                
+                // Adaptive Intelligence: Use a progress bar for immediate visual status
+                const spentPercentage = item.budget > 0 ? Math.min(100, (item.spent / item.budget) * 100) : (item.spent > 0 ? 100 : 0);
+                
+                const card = document.createElement('div');
+                card.className = `p-4 rounded-xl border-2 shadow-md transition duration-200 hover:shadow-xl ${containerClasses}`;
+                
+                // Adjusting text colors inside the card for contrast (uses direct hex/rgb values for color modes)
+                const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+                
+                // Light mode text is primarily dark, dark mode text is derived from the accent status
+                const categoryTextColor = isLight ? 'text-black' : (isOverBudget ? 'text-white' : 'text-surface');
+                const labelTextColor = isLight ? 'text-gray-700' : (isOverBudget ? 'text-purple-200' : 'text-surface/80');
+                const spentTextColor = isLight ? 'text-black' : (isOverBudget ? 'text-white' : 'text-surface');
+                const statusTextColor = isLight ? 'text-black' : (isOverBudget ? 'text-white' : 'text-surface');
+
+
+                card.innerHTML = `
+                    <h3 class="font-bold text-lg mb-2 ${categoryTextColor}">${item.category}</h3>
+                    
+                    <div class="h-3 w-full rounded-full bg-black/20 mb-1 overflow-hidden">
+                        <div class="h-full rounded-full ${progressBarColor}" style="width: ${spentPercentage}%;"></div>
+                    </div>
+                    
+                    <div class="flex justify-between text-sm mt-1">
+                        <span class="${labelTextColor}">Budget: ₹${item.budget.toFixed(2)}</span>
+                        <span class="font-semibold ${spentTextColor}">Spent: ₹${item.spent.toFixed(2)}</span>
+                    </div>
+
+                    <hr class="my-2 border-dashed border-black/30">
+                    
+                    <div class="flex justify-between font-bold text-base">
+                        <span>Status:</span>
+                        <span class="${statusTextColor}">
+                            ${item.status}
+                            ${item.difference !== 0 ? ` (₹${Math.abs(item.difference).toFixed(2)})` : ''}
+                        </span>
+                    </div>
+                `;
+                summaryDiv.appendChild(card);
+            });
+        }
+
+        function renderExpenseLog(expenses) {
+            const logBody = document.getElementById('expense-log-body');
+            const emptyMessage = document.getElementById('empty-expense-log');
+            logBody.innerHTML = '';
+
+            const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+
+            if (expenses.length === 0) {
+                const textColorClass = isLight ? 'text-gray-500' : 'text-purple-400';
+                emptyMessage.classList.remove('hidden');
+                emptyMessage.querySelector('p').className = `text-center py-4 ${textColorClass} hidden`;
+                return;
+            }
+            emptyMessage.classList.add('hidden');
+
+            // Display in reverse chronological order (newest first)
+            expenses.slice().reverse().forEach(exp => {
+                const row = document.createElement('tr');
+                // Ensure table row background is clear or subtle on hover in both themes
+                row.className = isLight ? 'hover:bg-purple-100 transition duration-100' : 'hover:bg-white/10 transition duration-100';
+                
+                const amountText = `₹${exp.amount.toFixed(2)}`;
+
+                // Dynamically adjust log table colors
+                const dateColor = isLight ? 'text-gray-700' : 'text-purple-300';
+                const categoryColor = isLight ? 'text-lime-700' : 'text-lime';
+                const descriptionColor = isLight ? 'text-black' : 'text-white';
+                const amountColor = isLight ? 'text-secondary' : 'text-secondary';
+
+
+                row.innerHTML = `
+                    <td class="px-4 py-3 whitespace-nowrap text-sm ${dateColor}">${exp.date}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium ${categoryColor}">${exp.category}</td>
+                    <td class="px-4 py-3 whitespace-normal text-sm ${descriptionColor}">${exp.description || '-'}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm font-bold ${amountColor} text-right">${amountText}</td>
+                `;
+                logBody.appendChild(row);
+            });
+        }
+
+        async function renderApp() {
+            // 1. Fetch current state (categories, budget)
+            const stateResult = await apiFetch('/api/state');
+            if (stateResult) {
+                renderCategories(stateResult.categories, stateResult.budget);
+            }
+            
+            // 2. Fetch report (which includes log)
+            const reportResult = await apiFetch('/api/report');
+            if (reportResult) {
+                renderReport(reportResult);
+                renderExpenseLog(reportResult.expenses_log);
+            }
+        }
+
+
+        // ------------------------------------------
+        // HANDLERS (Form submissions and actions)
+        // ------------------------------------------
+
+        // Global variable to hold the category name pending deletion
+        let categoryToDelete = null;
+
+        // Function to show the custom delete modal (Fixing window.confirm)
+        function handleCategoryAttempt(action, categoryName = null) {
+            if (action === 'remove') {
+                categoryToDelete = categoryName;
+                document.getElementById('modal-message').textContent = `Are you sure you want to remove the category "${categoryName}"? This will permanently delete all associated expenses.`;
+                document.getElementById('confirm-delete-btn').onclick = () => handleCategory('remove', categoryName);
+                document.getElementById('delete-modal').classList.remove('hidden');
+            } else if (action === 'add') {
+                handleCategory('add');
+            }
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('delete-modal').classList.add('hidden');
+            categoryToDelete = null;
+        }
+
+        async function handleCategory(action, categoryName = null) {
+            let catName;
+            
+            if (action === 'add') {
+                catName = document.getElementById('new-category-name').value;
+            } else if (action === 'remove') {
+                catName = categoryName;
+                closeDeleteModal(); // Close modal upon confirmation
+            } else {
+                return;
+            }
+
+            const payload = {
+                action: action,
+                category: catName
+            };
+
+            const result = await apiFetch('/api/categories', 'POST', payload);
+            if (result) {
+                document.getElementById('new-category-name').value = '';
+                showAlert(result.message, 'success');
+                renderApp();
+            }
+        }
+
+        document.getElementById('budget-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const form = e.target;
+            const data = new FormData(form);
+            const budgetData = {};
+
+            for (const [key, value] of data.entries()) {
+                budgetData[key] = value;
+            }
+
+            const result = await apiFetch('/api/budget', 'POST', budgetData);
+            if (result) {
+                showAlert(result.message, 'success');
+                renderApp();
+            }
+        });
+
+        document.getElementById('expense-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const form = e.target;
+            const data = new FormData(form);
+            const expenseData = {};
+
+            for (const [key, value] of data.entries()) {
+                expenseData[key] = value;
+            }
+
+            const result = await apiFetch('/api/expense', 'POST', expenseData);
+            if (result) {
+                showAlert(result.message, 'success');
+                form.reset();
+                renderApp();
+            }
+        });
+        
+        // Initial load
+        window.onload = renderApp;
+    </script>
+</body>
+</html>

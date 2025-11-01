@@ -1,222 +1,212 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
-import json, os
+import json
+import os
 from datetime import datetime
-from flask import jsonify
+from flask import Flask, render_template, request, jsonify, redirect, url_for
 
+# --- Configuration and Data Persistence ---
+DATA_FILE = 'data.json'
 app = Flask(__name__)
-app.secret_key = '970d6d1c8aa71b17c1a7806b084371f7ac6da281b4f5bd64e112f19d90d47399'  # change this for production
+app.secret_key = 'super_secret_key' # For session management, though not used here
 
-budget = {}
-expenses = []
-category_file = "categories.json"
-categories = [] # <<< CHANGE: Start with an empty list
-# File names for persistence
-expense_file = "expenditure.json"
+def load_data():
+    """Loads application state (budget, expenses, categories) from DATA_FILE."""
+    if os.path.exists(DATA_FILE) and os.path.getsize(DATA_FILE) > 0:
+        with open(DATA_FILE, 'r') as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                # Handle corrupted JSON file
+                print(f"Warning: {DATA_FILE} is corrupted. Starting with default data.")
+                return initialize_data()
+    return initialize_data()
 
+def initialize_data():
+    """Sets up the initial state."""
+    return {
+        "budget": {},
+        "expenses": [],
+        "categories": ["Food", "Travel", "Entertainment"]
+    }
 
-def load_categories():
-    global categories
-    if os.path.exists(category_file):
-        with open(category_file, 'r') as f:
-            categories = json.load(f)
-    else:
-        save_categories()  # Save default on first run
-def save_categories():
-    with open(category_file, 'w') as f:
-        json.dump(categories, f, indent=4)
-def load_budget():
-    global budget
-    month = datetime.now().strftime("%Y-%m")
-    budget_file = f"{month}.json"
-    if os.path.exists(budget_file):
-        with open(budget_file, 'r') as f:
-            budget = json.load(f)
-    else:
-        budget = {}
-def load_expenses():
-    month = datetime.now().strftime("%Y-%m")
-    if os.path.exists(expense_file):
-        with open(expense_file, 'r') as f:
-            all_expenses = json.load(f)
-        expenses[:] = all_expenses.get(month, [])
-    else:
-        expenses.clear()
-def save_budget_json():
-    month = datetime.now().strftime("%Y-%m")
-    budget_file = f"{month}.json"
-    with open(budget_file, 'w') as f:
-        json.dump(budget, f, indent=4)
-def save_expenses_json():
-    month = datetime.now().strftime("%Y-%m")
-    all_expenses = {}
-    if os.path.exists(expense_file):
-        with open(expense_file, 'r') as f:
-            all_expenses = json.load(f)
-    # The 'expenses' here refers to the global list (READ operation)
-    all_expenses.setdefault(month, []).extend(expenses) 
-    with open(expense_file, 'w') as f:
-        json.dump(all_expenses, f, indent=4)
+def save_data(data):
+    """Saves application state to DATA_FILE."""
+    with open(DATA_FILE, 'w') as f:
+        json.dump(data, f, indent=4)
 
+# Load initial data on application start
+app_data = load_data()
 
-# --- ROUTES --- #
+# --- API Endpoints ---
 
 @app.route('/')
-def home():
-    load_budget()
-    load_expenses()
-    print("debug expenses : ", expenses)
-    return render_template('home.html', budget=budget, expenses=expenses)
+def index():
+    """Renders the main single-page application template."""
+    return render_template('index.html')
 
-@app.route('/set-budget', methods=['GET', 'POST'])
-def set_budget():
-    global categories  # Must be at very start before any use or assignment
+@app.route('/api/state', methods=['GET'])
+def get_state():
+    """Returns the current application state."""
+    return jsonify(app_data)
 
-    load_categories()
-    load_budget()
-    load_expenses()  # if needed
+@app.route('/api/categories', methods=['POST'])
+def handle_categories():
+    """Adds or removes a category."""
+    global app_data
+    try:
+        req_data = request.get_json()
+        action = req_data.get('action')
+        category_name = req_data.get('category').strip().title()
 
-    if request.method == 'POST':
-        action = request.form.get('action')
-        if action == 'add_category_chips':
-            categories_str = request.form.get('all_categories_hidden', '')
-            new_cats = [c.strip() for c in categories_str.split(',') if c.strip()]
-            # Remove duplicates preserving order
-            new_unique = []
-            for c in new_cats:
-                if c not in new_unique:
-                    new_unique.append(c)
+        if not category_name:
+            return jsonify({"message": "Category name cannot be empty."}), 400
 
-            categories[:] = new_unique  # modify global list in place
-            save_categories()
-            flash("Categories updated.", "green")
-            return redirect(url_for('set_budget'))
-
-        # Other actions ...
-
-    return render_template('set_budget.html', categories=categories, budget=budget)
-
-
-@app.route('/add-expense', methods=['GET', 'POST'])
-
-def add_expense():
-    load_budget()
-    if not budget:
-        flash("Please set your budget before adding expenses.", "yellow")
-        return redirect(url_for('set_budget'))
-
-    if request.method == 'POST':
-        action = request.form.get('action')
-
-        if action == 'add_expense':
-            # --- EXPENSE ADDITION LOGIC ---
-            category = request.form.get('category')
-            amount_raw = request.form.get('amount')
+        if action == 'add':
+            if category_name in app_data['categories']:
+                return jsonify({"message": f"Category '{category_name}' already exists."}), 409
+            app_data['categories'].append(category_name)
+            app_data['budget'][category_name] = 0.0 # Initialize new category budget to zero
+            save_data(app_data)
+            return jsonify({"message": f"Category '{category_name}' added.", "data": app_data})
+        
+        elif action == 'remove':
+            if category_name not in app_data['categories']:
+                return jsonify({"message": f"Category '{category_name}' not found."}), 404
             
-            if category not in categories:
-                # If category is not in the list (user tampered or timing issue), reject
-                flash(f"Unknown or invalid category selected.", "red lighten-2")
-                return redirect(url_for('add_expense'))
+            # Remove from categories list
+            app_data['categories'].remove(category_name)
+            
+            # Remove from budget map
+            if category_name in app_data['budget']:
+                del app_data['budget'][category_name]
+            
+            # Remove associated expenses (optional, but clean)
+            app_data['expenses'] = [e for e in app_data['expenses'] if e['category'] != category_name]
 
-            try:
-                amount = float(amount_raw)
-                if amount <= 0:
-                    flash("Amount must be greater than zero.", "red lighten-2")
-                    return redirect(url_for('add_expense'))
-            except (ValueError, TypeError):
-                flash("Invalid amount entered.", "red lighten-2")
-                return redirect(url_for('add_expense'))
+            save_data(app_data)
+            return jsonify({"message": f"Category '{category_name}' removed.", "data": app_data})
 
-            date_str = datetime.now().strftime("%Y-%m-%d")
-            global expenses
-            expenses.append({"category": category, "amount": amount, "date": date_str})
-            # NOTE: We are appending, not overwriting. This is important.
-            save_expenses_json() 
-            flash(f"➕ Expense added: {category} ₹{amount:.2f}", "green lighten-2")
-            return redirect(url_for('home'))
+        return jsonify({"message": "Invalid category action."}), 400
 
-        elif action == 'add_category':
-            # --- CATEGORY ADDITION LOGIC ---
-            new_cat = request.form.get('new_category', '').strip()
-            if not new_cat:
-                flash("Category name cannot be empty.", "red lighten-2")
-            elif new_cat in categories:
-                flash("Category already exists.", "yellow lighten-2")
+    except Exception as e:
+        print(f"Category Error: {e}")
+        return jsonify({"message": f"An error occurred: {str(e)}"}), 500
+
+@app.route('/api/budget', methods=['POST'])
+def set_budget():
+    """Sets the monthly budget for categories."""
+    global app_data
+    try:
+        new_budget = request.get_json()
+        
+        # Validate that all keys are valid categories and values are numbers
+        validated_budget = {}
+        for cat in app_data['categories']:
+            amount = new_budget.get(cat)
+            if amount is not None:
+                try:
+                    validated_budget[cat] = float(amount)
+                except ValueError:
+                    return jsonify({"message": f"Invalid amount provided for category '{cat}'."}), 400
             else:
-                categories.append(new_cat)
-                save_categories()
-                flash(f"Category '{new_cat}' added successfully!", "green lighten-2")
-            return redirect(url_for('add_expense'))
+                # If a category is missing, assume 0.0 or keep existing if not explicitly setting all
+                # For simplicity, we assume the frontend sends all current categories.
+                validated_budget[cat] = app_data['budget'].get(cat, 0.0)
 
-        elif action == 'delete_category':
-            # --- CATEGORY DELETION LOGIC ---
-            cat_to_delete = request.form.get('delete_cat')
-            if cat_to_delete and cat_to_delete in categories:
-                categories.remove(cat_to_delete)
-                save_categories()
+        app_data['budget'] = validated_budget
+        save_data(app_data)
+        return jsonify({"message": "Budget updated successfully!", "data": app_data})
 
-                # Remove related expenses globally
-                # global expenses
-                expenses = [e for e in expenses if e['category'] != cat_to_delete]
-                save_expenses_json()
-                
-                flash(f"Category '{cat_to_delete}' deleted along with related expenses.", 'red darken-2')
-            else:
-                flash("Invalid category selected for deletion.", 'yellow darken-2')
-            return redirect(url_for('add_expense'))
+    except Exception as e:
+        print(f"Budget Error: {e}")
+        return jsonify({"message": f"An error occurred: {str(e)}"}), 500
 
-    # Handle GET request (rendering the form)
-    # Pass all categories for the dropdown and the management section
-    return render_template('add_expense.html', categories=categories)
+@app.route('/api/expense', methods=['POST'])
+def add_expense():
+    """Adds a new expense transaction."""
+    global app_data
+    try:
+        req_data = request.get_json()
+        category = req_data.get('category').strip().title()
+        amount_str = req_data.get('amount')
+        description = req_data.get('description', '').strip()
 
-@app.route('/report')
-def show_report():
-    load_budget()
-    load_expenses()
-    return render_template('report.html', budget=budget, expenses=expenses)
+        if category not in app_data['categories']:
+            return jsonify({"message": f"Category '{category}' is not a recognized budget category."}), 400
+        
+        try:
+            amount = float(amount_str)
+            if amount <= 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            return jsonify({"message": "Please enter a valid positive amount."}), 400
 
-@app.route('/add-category', methods=['GET', 'POST'])
-def add_category():
-    load_categories()
-    if request.method == 'POST':
-        new_cat = request.form.get('new_category', '').strip()
-        if not new_cat:
-            flash("Category name cannot be empty.", "red lighten-2")
-        elif new_cat in categories:
-            flash("Category already exists.", "yellow lighten-2")
-        else:
-            categories.append(new_cat)
-            save_categories()
-            flash(f"Category '{new_cat}' added successfully!", "green lighten-2")
-            return redirect(url_for('add_expense'))
-    return render_template('add_category.html', categories=categories)
+        date = datetime.now().strftime("%Y-%m-%d")
+        
+        new_expense = {
+            "category": category,
+            "amount": amount,
+            "date": date,
+            "description": description
+        }
 
-@app.route('/manage-categories', methods=['GET', 'POST'])
-def manage_categories():
-    load_categories()
-    load_expenses()
-    if request.method == 'POST':
-        # Handle deletions from submitted category list
-        to_delete = request.form.getlist('delete_categories')
-        if to_delete:
-            # Confirm categories exist
-            for cat in to_delete:
-                if cat in categories:
-                    categories.remove(cat)
-            save_categories()
+        app_data['expenses'].append(new_expense)
+        save_data(app_data)
+        return jsonify({"message": "Expense added successfully!", "data": new_expense})
 
-            # Remove related expenses
-            global expenses
-            expenses = [e for e in expenses if e['category'] not in to_delete]
+    except Exception as e:
+        print(f"Expense Error: {e}")
+        return jsonify({"message": f"An error occurred: {str(e)}"}), 500
 
-            # Save expenses again after removals
-            save_expenses_json()
 
-            flash(f"Deleted categories: {', '.join(to_delete)} and related expenses.", 'green lighten-2')
-            return redirect(url_for('manage_categories'))
+@app.route('/api/report', methods=['GET'])
+def generate_report():
+    """Calculates and returns the full expense report."""
+    
+    current_budget = app_data.get('budget', {})
+    current_expenses = app_data.get('expenses', [])
+    categories = app_data.get('categories', [])
 
-    # On GET, render management page
-    return render_template('manage_categories.html', categories=categories)
+    # 1. Calculate spent by category
+    spent_by_category = {}
+    total_spent = 0.0
+    for entry in current_expenses:
+        cat = entry.get("category")
+        amt = entry.get("amount", 0.0)
+        
+        # Only count if the category is still active/budgeted
+        if cat in categories:
+            spent_by_category[cat] = spent_by_category.get(cat, 0) + amt
+            total_spent += amt
+
+    # 2. Compile the report data
+    report = []
+    total_budget = 0.0
+    for cat in categories:
+        spent = spent_by_category.get(cat, 0.0)
+        limit = current_budget.get(cat, 0.0)
+        diff = spent - limit
+        
+        total_budget += limit
+
+        report.append({
+            "category": cat,
+            "spent": spent,
+            "budget": limit,
+            "difference": diff,
+            "status": "Within Budget" if diff <= 0 else "Over Budget"
+        })
+        
+    return jsonify({
+        "report": report, 
+        "total_spent": total_spent, 
+        "total_budget": total_budget,
+        "expenses_log": current_expenses
+    })
 
 
 if __name__ == '__main__':
+    # Ensure the data file exists on first run
+    if not os.path.exists(DATA_FILE):
+        save_data(initialize_data())
+    
     app.run(debug=True)
