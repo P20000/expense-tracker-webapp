@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Add Category | M3 Tracker</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+    
+    <style>
+        :root {
+            /* M3 Dynamic Color inspired tokens */
+            --md-sys-color-primary: #6750A4;
+            --md-sys-color-on-primary: #FFFFFF;
+            --md-sys-color-surface-container-low: #F7F2FA;
+            --md-sys-color-surface-container-high: #EAE6EC;
+            --md-sys-color-on-surface: #1C1B1F;
+            --md-sys-color-outline: #79747E;
+            --md-sys-color-tertiary: #00BCD4; 
+            --md-sys-color-link: #49454F; /* Subtle link color */
+
+            /* M3 Typography */
+            --md-sys-typescale-headline-small: 700 1.25rem/1.75rem Roboto, sans-serif;
+            --md-sys-typescale-title-large: 500 1.25rem/1.75rem Roboto, sans-serif;
+            --md-sys-typescale-body-large: 400 1rem/1.5rem Roboto, sans-serif;
+        }
+
+        body {
+            font: var(--md-sys-typescale-body-large);
+            color: var(--md-sys-color-on-surface);
+            background-color: var(--md-sys-color-surface-container-low);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+        }
+        
+        main {
+            flex: 1 0 auto;
+            padding: 32px 24px;
+            max-width: 600px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        /* --- Components --- */
+
+        /* M3 Form Container (Elevated Card) */
+        .m3-card {
+            background: white;
+            padding: 30px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+            border-radius: 16px;
+            margin-top: 24px;
+        }
+
+        /* M3 Text Field (Outlined Style) - Used for category name */
+        .input-group {
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .m3-input {
+            width: 100%;
+            padding: 16px 12px 6px;
+            border: 1px solid var(--md-sys-color-outline);
+            border-radius: 8px;
+            font-size: 1rem;
+            box-sizing: border-box;
+            background-color: transparent;
+            transition: border-color 0.2s;
+        }
+        .m3-input:focus {
+            outline: none;
+            border-color: var(--md-sys-color-tertiary);
+            border-width: 2px;
+            padding: 15px 12px 5px;
+        }
+        .m3-label {
+            position: absolute;
+            left: 12px;
+            top: 14px;
+            color: var(--md-sys-color-outline);
+            pointer-events: none;
+            transition: 0.2s ease all;
+            background: white;
+            padding: 0 4px;
+        }
+        /* Label float logic for placeholder-style inputs */
+        .m3-input:focus ~ .m3-label,
+        .m3-input:not(:placeholder-shown) ~ .m3-label {
+            top: -10px;
+            left: 8px;
+            font-size: 0.75rem;
+            color: var(--md-sys-color-tertiary);
+        }
+
+        /* Primary Button (M3 Filled Button) */
+        .button-primary {
+            background-color: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+            padding: 10px 24px;
+            border: none;
+            border-radius: 20px;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s, box-shadow 0.2s;
+            font-size: 1rem;
+            margin-top: 10px;
+        }
+        .button-primary:hover {
+            background-color: #7A66C6; 
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Existing Categories List */
+        .category-list {
+            list-style: none;
+            padding: 0;
+            margin-top: 10px;
+        }
+        .category-list li {
+            padding: 8px 16px;
+            margin-bottom: 4px;
+            border-radius: 8px; /* M3 subtle item rounding */
+            background-color: var(--md-sys-color-surface-container-high);
+            border-left: 4px solid var(--md-sys-color-primary); /* Visual accent */
+        }
+        
+        /* M3 Text Link */
+        .m3-text-link {
+            text-decoration: none;
+            color: var(--md-sys-color-link);
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 24px;
+        }
+        .m3-text-link:hover {
+            color: var(--md-sys-color-primary);
+        }
+    </style>
+</head>
+<body>
+
+    <main>
+        <h4 style="font: var(--md-sys-typescale-headline-small); margin-bottom: 8px;">
+            <span class="material-symbols-outlined" style="vertical-align: middle;">label</span>
+            Add New Category
+        </h4>
+        <p style="color: var(--md-sys-color-outline);">Define a new category for tracking your expenses.</p>
+        
+        <div class="m3-card">
+            <form method="post" action="{{ url_for('add_category') }}" style="display: flex; gap: 16px; align-items: flex-end;">
+                <div class="input-group" style="flex-grow: 1; margin-bottom: 0;">
+                    <input type="text" name="new_category" id="new_category" required class="m3-input" placeholder=" ">
+                    <label for="new_category" class="m3-label">Category Name</label>
+                </div>
+                
+                <button type="submit" class="button-primary">
+                    <span class="material-symbols-outlined">add</span>
+                    Add
+                </button>
+            </form>
+            
+            <h5 style="font: var(--md-sys-typescale-title-large); margin-top: 30px; margin-bottom: 10px;">Existing Categories:</h5>
+            
+            <ul class="category-list">
+                {% for cat in categories %}
+                    <li>{{ cat }}</li>
+                {% else %}
+                    <li style="color: var(--md-sys-color-outline); border-left: none;">No custom categories defined.</li>
+                {% endfor %}
+            </ul>
+        </div>
+        
+        <a href="{{ url_for('add_expense') }}" class="m3-text-link">
+            <span class="material-symbols-outlined">arrow_back</span>
+            Back to Add Expense
+        </a>
+    </main>
+    
+</body>
+</html>

@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Add Expense | M3 Tracker</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+    
+    <style>
+        :root {
+            /* M3 Dynamic Color inspired tokens (consistent theme) */
+            --md-sys-color-primary: #6750A4;
+            --md-sys-color-on-primary: #FFFFFF;
+            --md-sys-color-surface-container-low: #F7F2FA;
+            --md-sys-color-surface-container-high: #EAE6EC;
+            --md-sys-color-on-surface: #1C1B1F;
+            --md-sys-color-outline: #79747E;
+            --md-sys-color-tertiary: #00BCD4; /* Used for input active state */
+
+            /* M3 Typography */
+            --md-sys-typescale-headline-small: 700 1.25rem/1.75rem Roboto, sans-serif;
+            --md-sys-typescale-title-large: 500 1.25rem/1.75rem Roboto, sans-serif;
+            --md-sys-typescale-body-large: 400 1rem/1.5rem Roboto, sans-serif;
+        }
+
+        body {
+            font: var(--md-sys-typescale-body-large);
+            color: var(--md-sys-color-on-surface);
+            background-color: var(--md-sys-color-surface-container-low);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+        }
+        
+        main {
+            flex: 1 0 auto;
+            padding: 32px 24px;
+            max-width: 600px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        /* Top App Bar */
+        header {
+            background-color: var(--md-sys-color-surface-container-high);
+            color: var(--md-sys-color-on-surface);
+            padding: 0 24px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        nav {
+            display: flex;
+            align-items: center;
+            height: 64px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .brand-logo {
+            font: var(--md-sys-typescale-title-large);
+            font-weight: 700;
+            text-decoration: none;
+            color: var(--md-sys-color-on-surface);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        #nav-desktop {
+            margin-left: auto;
+            list-style: none;
+            padding: 0;
+            display: flex;
+            gap: 24px;
+        }
+        #nav-desktop a {
+            text-decoration: none;
+            color: var(--md-sys-color-outline);
+            padding: 8px 0;
+            font-weight: 500;
+        }
+        #nav-desktop a:hover {
+            color: var(--md-sys-color-primary);
+        }
+
+        /* Form Container (M3 Elevated Card) */
+        form {
+            background: white;
+            padding: 30px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+            border-radius: 16px; /* M3 rounded corners */
+            margin-top: 24px;
+        }
+
+        /* M3 Text Field (Outlined Style) */
+        .input-group {
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .m3-input, .m3-select {
+            width: 100%;
+            padding: 16px 12px 6px;
+            border: 1px solid var(--md-sys-color-outline);
+            border-radius: 8px;
+            font-size: 1rem;
+            box-sizing: border-box;
+            background-color: transparent;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            -webkit-appearance: none; /* Remove default browser styling for select */
+            -moz-appearance: none;
+            appearance: none;
+        }
+        .m3-select {
+            color: transparent;;
+        }
+        .m3-select:focus,
+        .m3-select:not([value=""]):not([value="Choose category"]):not([value=""]) {
+            color: var(--md-sys-color-on-surface); /* Show the text when active or filled */
+        }
+        .m3-input:focus, .m3-select:focus {
+            outline: none;
+            border-color: var(--md-sys-color-tertiary);
+            border-width: 2px;
+            padding: 15px 12px 5px; /* Adjust padding for 2px border */
+        }
+        .m3-label {
+            position: absolute;
+            left: 12px;
+            top: 14px;
+            color: var(--md-sys-color-outline);
+            pointer-events: none;
+            transition: 0.2s ease all;
+            background: white;
+            padding: 0 4px;
+            z-index: 1; /* Ensure label is above select arrow */
+        }
+        /* State when input/select is focused or has a value */
+        .m3-input:focus ~ .m3-label,
+        .m3-input:not(:placeholder-shown) ~ .m3-label,
+        .m3-select:focus ~ .m3-label,
+        .m3-select:not([value=""]) ~ .m3-label { /* For select with a chosen value */
+            top: -10px;
+            left: 8px;
+            font-size: 0.75rem;
+            color: var(--md-sys-color-tertiary);
+        }
+        /* Ensure pre-filled values for inputs float correctly */
+        .m3-input[value]:not([value=""]) ~ .m3-label {
+            top: -10px;
+            left: 8px;
+            font-size: 0.75rem;
+            color: var(--md-sys-color-outline);
+        }
+
+        /* Custom Arrow for M3 Select */
+        .select-arrow {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--md-sys-color-outline);
+            pointer-events: none; /* Make sure arrow doesn't block clicks on select */
+            font-size: 24px; /* Material Symbols default size */
+            z-index: 0; /* Keep behind label */
+        }
+        .m3-select:focus + .select-arrow {
+            color: var(--md-sys-color-tertiary);
+        }
+
+        /* Primary Button (M3 Filled Button) */
+        .button-primary {
+            background-color: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+            padding: 12px 24px;
+            border: none;
+            border-radius: 20px;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s, box-shadow 0.2s;
+            width: 100%;
+            margin-top: 30px;
+            font-size: 1rem;
+        }
+        .button-primary:hover {
+            background-color: #7A66C6; 
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        .button-secondary-outline {
+            background-color: transparent;
+            color: var(--md-sys-color-primary);
+            border: 1px solid var(--md-sys-color-primary);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-top: 12px;
+        }
+        .button-secondary-outline:hover {
+            background-color: rgba(103, 80, 164, 0.08); /* Primary color with low opacity */
+        }
+
+        /* Delete Button Style (Icon Button) */
+        .button-icon-delete {
+            background: none;
+            border: none;
+            color: var(--md-sys-color-error);
+            cursor: pointer;
+            padding: 4px;
+            line-height: 1;
+        }
+
+        /* Category List Styling */
+        .category-management {
+            background: var(--md-sys-color-surface-container-high);
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 24px;
+            border: 1px solid var(--md-sys-color-outline);
+        }
+        .category-list {
+            list-style: none;
+            padding: 0;
+            margin-top: 12px;
+        }
+        .category-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--md-sys-color-surface-container-low);
+        }
+        .category-item:last-child {
+            border-bottom: none;
+        }
+        .category-add-form {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+        }
+        .category-add-form button {
+            flex-shrink: 0;
+            margin-top: 0; /* Override button-primary margin */
+            width: auto;
+            padding: 10px 18px;
+        }
+        .category-add-form .input-group {
+            flex-grow: 1;
+            margin-bottom: 0;
+        }
+        /* Ensure the input inside the add form is styled correctly */
+        .category-add-form .m3-input {
+            padding: 10px 12px 6px;
+        }
+        .category-add-form .m3-input:focus {
+            padding: 9px 12px 5px;
+        }
+        /* Adjust label for simpler inline form */
+        .category-add-form .m3-label {
+             top: 8px; /* Lower top position */
+        }
+        .category-add-form .m3-input:focus ~ .m3-label,
+        .category-add-form .m3-input:not(:placeholder-shown) ~ .m3-label {
+            top: -10px;
+        }
+        /* Footer */
+        footer {
+            background-color: var(--md-sys-color-surface-container-high);
+            color: var(--md-sys-color-outline);
+            padding: 16px 24px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <nav>
+            <a href="{{ url_for('home') }}" class="brand-logo">
+                <span class="material-symbols-outlined">payments</span>
+                Expense Tracker
+            </a>
+            <ul id="nav-desktop">
+                <li><a href="{{ url_for('set_budget') }}">Set Budget</a></li>
+                <li><a href="{{ url_for('add_expense') }}" style="color: var(--md-sys-color-primary);">Add Expense</a></li>
+                <li><a href="{{ url_for('show_report') }}">Report</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <h4 style="font: var(--md-sys-typescale-headline-small); margin-bottom: 8px;">
+            <span class="material-symbols-outlined" style="vertical-align: middle;">add_shopping_cart</span>
+            Add New Expense
+        </h4>
+        <p style="color: var(--md-sys-color-outline);">Log your latest spending to keep your finances updated.</p>
+
+        <div class="category-management">
+            <h5 style="font: var(--md-sys-typescale-title-large); margin-top: 0;">Manage Categories</h5>
+            
+            <form method="post" action="{{ url_for('add_expense') }}" class="category-add-form">
+                <input type="hidden" name="action" value="add_category">
+                <div class="input-group">
+                    <input id="new_category" name="new_category" type="text" required class="m3-input" placeholder=" ">
+                    <label for="new_category" class="m3-label">New Category Name</label>
+                </div>
+                <button type="submit" class="button-primary" style="background-color: var(--md-sys-color-tertiary);">
+                    <span class="material-symbols-outlined">add</span>
+                </button>
+            </form>
+            
+            {% if categories %}
+            <ul class="category-list">
+                {% for cat in categories %}
+                <li class="category-item">
+                    <span>{{ cat }}</span>
+                    <form method="post" action="{{ url_for('add_expense') }}" style="display: inline;">
+                        <input type="hidden" name="action" value="delete_category">
+                        <input type="hidden" name="delete_cat" value="{{ cat }}">
+                        <button type="submit" class="button-icon-delete" title="Delete Category and all related expenses" onclick="return confirm('Are you sure you want to delete the category &quot;{{ cat }}&quot; and ALL related expenses?');">
+                            <span class="material-symbols-outlined">delete</span>
+                        </button>
+                    </form>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p style="color: var(--md-sys-color-outline); margin-top: 12px;">No categories defined yet. Add one above to start logging expenses.</p>
+            {% endif %}
+        </div>
+
+        <hr style="border: none; border-top: 1px solid var(--md-sys-color-surface-container-high); margin: 24px 0;">
+
+        <form method="post" action="{{ url_for('add_expense') }}">
+            <input type="hidden" name="action" value="add_expense">
+
+            <div class="input-group">
+                <select name="category" required class="m3-select" id="category_select" value="" onchange="this.setAttribute('value', this.value);">
+                    <option value="" disabled selected>Choose category</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat }}">{{ cat }}</option>
+                    {% endfor %}
+                </select>
+                <label for="category_select" class="m3-label">Category</label>
+                <span class="material-symbols-outlined select-arrow">arrow_drop_down</span>
+            </div>
+
+            <div class="input-group">
+                <input id="amount" name="amount" type="number" step="0.01" min="0" required 
+                    class="m3-input" placeholder=" ">
+                <label for="amount" class="m3-label">Amount (₹)</label>
+            </div>
+
+            <button type="submit" class="button-primary">
+                <span class="material-symbols-outlined">add_circle</span>
+                Add Expense
+            </button>
+        </form>
+
+    </main>
+
+    <footer>
+        &copy; 2025 Expense Tracker | Designed with Material Design 3 principles
+    </footer>
+
+    <script>
+        // Manually trigger label float for selects if a value is pre-selected or changes
+        document.addEventListener('DOMContentLoaded', function() {
+            const selectElement = document.getElementById('category_select');
+            
+            // Check if a default 'selected' option exists and update label
+            if (selectElement.value !== "") {
+                selectElement.classList.add('selected'); // Custom class to help CSS
+            }
+
+            selectElement.addEventListener('change', function() {
+                if (this.value !== "") {
+                    this.classList.add('selected');
+                } else {
+                    this.classList.remove('selected');
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>

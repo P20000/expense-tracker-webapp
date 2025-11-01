@@ -1,11 +1,483 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Set Monthly Budget</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Set Budget | M3 Tracker</title>
     
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+    
+    <style>
+        :root {
+            /* M3 Dynamic Color inspired tokens (consistent theme) */
+            --md-sys-color-primary: #6750A4;
+            --md-sys-color-on-primary: #FFFFFF;
+            /* Surface Containers (M3 promotes distinct surfaces for hierarchy) */
+            --md-sys-color-surface: #FFFFFF; /* Base card background */
+            --md-sys-color-surface-container-low: #F7F2FA; /* Page background */
+            --md-sys-color-surface-container: #EAE6EC; /* Secondary surface, e.g., AppBar */
+            --md-sys-color-surface-container-high: #E0DBE4; /* Raised surface, e.g., management box */
+            --md-sys-color-on-surface: #1C1B1F;
+            --md-sys-color-outline: #79747E;
+            --md-sys-color-tertiary: #00BCD4; /* Used for input active state */
+            --md-sys-color-error: #B00020;
+            --md-sys-color-on-error: #FFFFFF;
+
+            /* M3 Typography */
+            --md-sys-typescale-headline-small: 700 1.25rem/1.75rem Roboto, sans-serif;
+            --md-sys-typescale-title-large: 500 1.25rem/1.75rem Roboto, sans-serif;
+            --md-sys-typescale-body-large: 400 1rem/1.5rem Roboto, sans-serif;
+            --md-sys-typescale-label-small: 500 0.75rem/1rem Roboto, sans-serif;
+        }
+
+        body {
+            font: var(--md-sys-typescale-body-large);
+            color: var(--md-sys-color-on-surface);
+            background-color: var(--md-sys-color-surface-container-low);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+        }
+        
+        main {
+            flex: 1 0 auto;
+            padding: 32px 24px;
+            max-width: 600px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        /* Top App Bar - Using Surface Container */
+        header {
+            background-color: var(--md-sys-color-surface-container); 
+            color: var(--md-sys-color-on-surface);
+            padding: 0 24px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        nav {
+            display: flex; align-items: center; height: 64px; max-width: 1200px; margin: 0 auto;
+        }
+        .brand-logo {
+            font: var(--md-sys-typescale-title-large); font-weight: 700; text-decoration: none; color: var(--md-sys-color-on-surface); display: flex; align-items: center; gap: 8px;
+        }
+        #nav-desktop {
+            margin-left: auto; list-style: none; padding: 0; display: flex; gap: 24px;
+        }
+        #nav-desktop a {
+            text-decoration: none; color: var(--md-sys-color-outline); padding: 8px 0; font-weight: 500;
+        }
+        #nav-desktop a:hover {
+            color: var(--md-sys-color-primary);
+        }
+        .m3-label.active,
+        .m3-input:focus ~ .m3-label,
+        .m3-input:not(:placeholder-shown) ~ .m3-label {
+            top: -10px;
+            left: 8px;
+            font-size: 0.75rem;
+            color: var(--md-sys-color-tertiary);
+        }
+        /* Form Container - Using Surface */
+        .budget-form-container {
+            background: var(--md-sys-color-surface); 
+            padding: 30px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+            border-radius: 16px;
+            margin-top: 24px;
+        }
+        .budget-form-container h5 {
+             font: var(--md-sys-typescale-title-large); margin: 0 0 16px 0;
+        }
+
+        /* M3 Text Field (Outlined Style) */
+        .input-group { margin-bottom: 20px; position: relative; }
+        .m3-input {
+            width: 100%; padding: 16px 12px 6px; border: 1px solid var(--md-sys-color-outline); border-radius: 8px; font-size: 1rem; box-sizing: border-box; background-color: transparent; transition: border-color 0.2s;
+        }
+        .m3-input:focus {
+            outline: none; border-color: var(--md-sys-color-tertiary); border-width: 2px; padding: 15px 12px 5px;
+        }
+        .m3-label {
+            position: absolute; left: 12px; top: 14px; color: var(--md-sys-color-outline); pointer-events: none; transition: 0.2s ease all; background: var(--md-sys-color-surface-container); padding: 0 4px; z-index: 1;
+        }
+        .m3-input:focus ~ .m3-label, .m3-input:not(:placeholder-shown) ~ .m3-label {
+            top: -10px; left: 8px; font-size: 0.75rem; color: var(--md-sys-color-tertiary); 
+        }
+        .m3-input[value]:not([value=""]) ~ .m3-label {
+            top: -10px; left: 8px; font-size: 0.75rem; color: var(--md-sys-color-outline);
+        }
+
+
+        /* Primary Button (M3 Filled Button) */
+        .button-primary {
+            background-color: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+            padding: 12px 24px; border: none; border-radius: 20px; font-weight: 500;
+            text-decoration: none; display: inline-flex; align-items: center; gap: 8px;
+            cursor: pointer; transition: background-color 0.2s, box-shadow 0.2s, opacity 0.2s; 
+            width: 100%; margin-top: 30px; font-size: 1rem;
+        }
+        .button-primary:hover {
+            background-color: #7A66C6; 
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        .button-primary:disabled {
+            background-color: var(--md-sys-color-surface-container);
+            color: var(--md-sys-color-outline);
+            cursor: not-allowed;
+            opacity: 0.6;
+            box-shadow: none;
+        }
+
+        /* Category Management Section */
+        .category-management {
+            background: var(--md-sys-color-surface-container); 
+            padding: 20px;
+            border-radius: 16px;
+            margin-top: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); 
+        }
+        .category-management h5 {
+            font: var(--md-sys-typescale-title-large); margin: 0 0 16px 0;
+        }
+        .button-primary.small-inline {
+            flex-shrink: 0; margin-top: 0; width: auto; padding: 10px 18px;
+            background-color: var(--md-sys-color-tertiary); 
+        }
+        .category-add-form {
+            display: flex; gap: 10px; margin-top: 16px; align-items: flex-end;
+        }
+        .category-add-form .input-group { flex-grow: 1; margin-bottom: 0; }
+        
+        .button-icon-delete {
+            background: none; border: none; color: var(--md-sys-color-error); cursor: pointer; padding: 4px; line-height: 1;
+            border-radius: 50%; 
+            transition: background-color 0.1s;
+        }
+        .button-icon-delete:hover {
+            background-color: rgba(176, 0, 32, 0.1); 
+        }
+        .category-list { list-style: none; padding: 0; margin-top: 12px; }
+        .category-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            /* Use the standard outline color for a subtle, neutral divider
+            (or keep the container-high color if you prefer the slightly darker tone) */
+            border-bottom: 1px solid var(--md-sys-color-outline); /* Use the standard M3 outline token */
+            opacity: 0.3; /* Reduce opacity for a softer look */
+        }
+
+        .category-item:last-child {
+            border-bottom: none; /* Crucial to remove the last line */
+        }
+        /* M3 Chip Styles */
+        .chip-input-container {
+            border: 1px solid var(--md-sys-color-outline);
+            border-radius: 8px;
+            padding: 8px 12px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            min-height: 48px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            background-color: var(--md-sys-color-surface);
+            position: relative;
+        }
+        .chip-input-container:focus-within {
+            border-color: var(--md-sys-color-tertiary);
+            border-width: 2px;
+            padding: 7px 11px;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            background-color: var(--md-sys-color-surface-container);
+            color: var(--md-sys-color-on-surface);
+            border-radius: 8px;
+            padding: 4px 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            line-height: 1.25rem;
+            gap: 4px;
+            user-select: none;
+            flex-shrink: 0;
+        }
+        .chip .chip-text {
+            white-space: nowrap;
+        }
+        .chip .chip-dismiss {
+            font-family: 'Material Symbols Outlined';
+            font-size: 1rem;
+            cursor: pointer;
+            color: var(--md-sys-color-outline);
+            transition: color 0.1s;
+            margin-left: 4px;
+        }
+        .chip .chip-dismiss:hover {
+            color: var(--md-sys-color-on-surface);
+        }
+
+        .chip-input {
+            flex-grow: 1;
+            border: none;
+            outline: none;
+            background: none;
+            padding: 0;
+            font-size: 1rem;
+            min-width: 80px;
+            color: var(--md-sys-color-on-surface);
+        }
+
+        .chip-label {
+            position: absolute;
+            left: 12px;
+            /* CHANGE: Move the label higher so it clears the placeholder's default position */
+            top: 10px; 
+            color: var(--md-sys-color-outline);
+            pointer-events: none;
+            transition: 0.2s ease all;
+            background: var(--md-sys-color-surface); 
+            padding: 0 4px;
+            z-index: 2;
+            /* Add transformation for initial state transition */
+            transform: translateY(0); 
+            font-size: 1rem; /* Default font size */
+        }
+        .chip-input-container:focus-within .chip-label,
+        .chip-input-container.has-chips .chip-label,
+        .chip-input-container.is-typing .chip-label {
+            top: -10px;
+            left: 8px;
+            font-size: 0.75rem;
+            color: var(--md-sys-color-tertiary);
+        }
+        .chip-input-container.has-chips .chip-label,
+        .chip-input-container.is-typing .chip-label {
+            color: var(--md-sys-color-outline);
+        }
+
+        /* Hidden input */
+        .hidden-categories-input {
+            display: none;
+        }
+        /* Footer */
+        footer {
+            background-color: var(--md-sys-color-surface-container);
+            color: var(--md-sys-color-outline);
+            padding: 16px 24px;
+            text-align: center;
+        }
+    </style>
 </head>
 <body>
-    <h1>Set Your Budget</h1>
-    <!-- Add your budget form here soon -->
+
+    <header>
+        <nav>
+            <a href="{{ url_for('home') }}" class="brand-logo">
+                <span class="material-symbols-outlined">payments</span>
+                Expense Tracker
+            </a>
+            <ul id="nav-desktop">
+                <li><a href="{{ url_for('set_budget') }}" style="color: var(--md-sys-color-primary);">Set Budget</a></li>
+                <li><a href="{{ url_for('add_expense') }}">Add Expense</a></li>
+                <li><a href="{{ url_for('show_report') }}">Report</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <h4 style="font: var(--md-sys-typescale-headline-small); margin-bottom: 8px;">
+            <span class="material-symbols-outlined" style="vertical-align: middle;">paid</span>
+            Set Monthly Budget
+        </h4>
+        <p style="color: var(--md-sys-color-outline);">Define your categories and enter the maximum amount you plan to spend in each.</p>
+
+        <div class="category-management">
+            <h5 style="font: var(--md-sys-typescale-title-large); margin-top: 0;">Category Manager</h5>
+
+            <div id="categoryChipInputContainer" class="chip-input-container">
+                <span class="chip-label">Categories</span>
+                <input type="text" class="chip-input" id="newCategoryInput" placeholder="Add category (e.g., Food, Travel)" autocomplete="off">
+            </div>
+
+            <form id="categorySubmitForm" method="post" action="{{ url_for('set_budget') }}" style="display:none;">
+                <input type="hidden" name="action" value="add_category_chips">
+                <input type="hidden" name="all_categories_hidden" id="allCategoriesHiddenInput">
+                <button type="submit" id="submitCategoriesButton"></button>
+            </form>
+
+            <button type="button" class="button-primary" id="saveCategoriesButton" style="margin-top: 20px;">
+                <span class="material-symbols-outlined">save</span>
+                Save Categories
+            </button>
+
+            <p style="color: var(--md-sys-color-outline); margin-top: 12px; margin-bottom: 0;">
+                Your categories are managed above. Saving will update the budget form below.
+            </p>
+        </div>
+
+        <hr style="border:none; border-top:1px solid var(--md-sys-color-outline); opacity:0.2; margin:30px 0;">
+
+        <div class="budget-form-container">
+            <h5 style="margin-top: 0;">Budget Allocation</h5>
+            <form method="post" action="{{ url_for('set_budget') }}" id="budgetForm">
+                <input type="hidden" name="action" value="set_budget">
+                <div id="budgetInputsContainer"></div>
+                <button type="submit" class="button-primary" id="saveBudgetButton" disabled>
+                    <span class="material-symbols-outlined">save</span>
+                    Save Budget
+                </button>
+            </form>
+        </div>
+    </main>
+
+    <footer>
+        &copy; 2025 Expense Tracker | Designed with Material Design 3 principles
+    </footer>
+
+    <script>
+        // Inject categories from Jinja as JSON
+        let categories = [];
+        /* {% if categories %} */
+        // categories = {{ categories | tojson | safe }};
+        /* {% endif %} */
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const categoryChipInputContainer = document.getElementById('categoryChipInputContainer');
+            const newCategoryInput = document.getElementById('newCategoryInput');
+            const allCategoriesHiddenInput = document.getElementById('allCategoriesHiddenInput');
+            const saveCategoriesButton = document.getElementById('saveCategoriesButton');
+            const categorySubmitForm = document.getElementById('categorySubmitForm');
+            const budgetForm = document.getElementById('budgetForm');
+            const saveBudgetButton = document.getElementById('saveBudgetButton');
+            const budgetInputsContainer = document.getElementById('budgetInputsContainer');
+
+            function renderBudgetInputs() {
+                budgetInputsContainer.innerHTML = '';
+                categories.forEach(cat => {
+                    const inputGroup = document.createElement('div');
+                    inputGroup.className = 'input-group';
+                    inputGroup.innerHTML = `
+                        <input id="${cat}" name="${cat}" type="number" step="0.01" min="0" class="m3-input" placeholder=" " value="">
+                        <label for="${cat}" class="m3-label">${cat} Budget (₹)</label>
+                    `;
+                    budgetInputsContainer.appendChild(inputGroup);
+                });
+            }
+
+            function renderChips() {
+                // Remove existing chips except input
+                const existingChips = categoryChipInputContainer.querySelectorAll('.chip');
+                existingChips.forEach(chip => chip.remove());
+
+                categories.forEach(cat => {
+                    const chip = document.createElement('div');
+                    chip.classList.add('chip');
+                    chip.innerHTML = `
+                        <span class="chip-text">${cat}</span>
+                        <span class="material-symbols-outlined chip-dismiss" data-category="${cat}">close</span>
+                    `;
+                    categoryChipInputContainer.insertBefore(chip, newCategoryInput);
+                });
+
+                allCategoriesHiddenInput.value = categories.join(',');
+                const hasChips = categories.length > 0;
+                    const hasInputText = newCategoryInput.value.trim().length > 0;
+
+                    if (hasChips || hasInputText) {
+                        categoryChipInputContainer.classList.add('has-chips');
+                        // FIX 2: Clear placeholder when active (we use CSS for this now, but this is a double-check)
+                        newCategoryInput.placeholder = ""; 
+                    } else {
+                        categoryChipInputContainer.classList.remove('has-chips');
+                        // FIX 3: Set placeholder text only when truly empty (CSS handles visibility)
+                        newCategoryInput.placeholder = "Add category (e.g., Food, Travel)";
+                    }
+
+                if (categories.length === 0) {
+                    saveBudgetButton.disabled = true;
+                    if (!document.getElementById('noCategoriesMessage')) {
+                        const messageP = document.createElement('p');
+                        messageP.id = 'noCategoriesMessage';
+                        messageP.style.color = 'var(--md-sys-color-outline)';
+                        messageP.style.marginTop = '12px';
+                        messageP.style.marginBottom = '0';
+                        messageP.textContent = 'Add categories above to see budget fields here.';
+                        budgetForm.prepend(messageP);
+                    }
+                } else {
+                    saveBudgetButton.disabled = false;
+                    const messageP = document.getElementById('noCategoriesMessage');
+                    if (messageP) messageP.remove();
+                }
+                renderBudgetInputs();
+            }
+
+            newCategoryInput.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter' || event.key === ',') {
+                    event.preventDefault();
+                    const newCat = newCategoryInput.value.trim();
+                    if (newCat && !categories.includes(newCat)) {
+                        categories.push(newCat);
+                        newCategoryInput.value = '';
+                        renderChips();
+                    }
+                }
+            });
+
+            newCategoryInput.addEventListener('input', function () {
+                if (newCategoryInput.value.length > 0) {
+                    categoryChipInputContainer.classList.add('is-typing');
+                } else {
+                    categoryChipInputContainer.classList.remove('is-typing');
+                }
+                if (categories.length === 0 && newCategoryInput.value.length === 0) {
+                    categoryChipInputContainer.classList.remove('has-chips');
+                } else {
+                    categoryChipInputContainer.classList.add('has-chips');
+                }
+            });
+
+            categoryChipInputContainer.addEventListener('click', function (event) {
+                if (event.target.classList.contains('chip-dismiss')) {
+                    const catToRemove = event.target.dataset.category;
+                    categories = categories.filter(cat => cat !== catToRemove);
+                    renderChips();
+                }
+            });
+
+            saveCategoriesButton.addEventListener('click', function () {
+                const pendingCat = newCategoryInput.value.trim();
+                if (pendingCat && !categories.includes(pendingCat)) {
+                    categories.push(pendingCat);
+                    newCategoryInput.value = '';
+                    renderChips();
+                }
+                categorySubmitForm.submit();
+            });
+
+            renderChips();
+
+            // Robust label float fallback for m3-inputs
+            document.querySelectorAll('.m3-input').forEach(function (input) {
+                if (input.value !== "") {
+                    input.closest('.input-group').querySelector('.m3-label').classList.add('active');
+                }
+                input.addEventListener('focus', function () {
+                    this.closest('.input-group').querySelector('.m3-label').classList.add('active');
+                });
+                input.addEventListener('blur', function () {
+                    if (this.value === "") {
+                        this.closest('.input-group').querySelector('.m3-label').classList.remove('active');
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 </html>
