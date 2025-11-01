@@ -143,9 +143,3 @@ For questions or suggestions, please contact [Your Name or Email].
 *Thank you for checking out this project!*
 EOF
 ```
-
-***
-
-Run this script once in your project directory. It will overwrite or create `README.md` with comprehensive instructions and details tailored for your Flask Expense Tracker project.
-
-If you want, I can help you customize sections or generate further documentation!
