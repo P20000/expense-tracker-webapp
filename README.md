@@ -1,9 +1,3 @@
-Here's a bash script that generates a highly detailed `README.md` file tailored for your Flask-based Expense Tracker web app project. It includes sections covering project overview, features, setup, usage, deployment, and contributing guidelines.
-
-***
-
-```bash
-cat << 'EOF' > README.md
 # Expense Tracker Web Application
 
 ## Overview
