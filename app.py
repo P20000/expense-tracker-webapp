@@ -1,13 +1,15 @@
-import json
 import os
+import uuid
+import json
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, redirect, url_for
-import uuid
 from turso import Client, ResultSet # Import the Turso client
 
-# --- Configuration and Data Persistence ---
-DATA_FILE = 'data.json'
+# --- Configuration and Database Initialization ---
+
 app = Flask(__name__)
+
+# 1. Load Secure Environment Variables
 DATABASE_URL = os.environ.get('DATABASE_URL') 
 DATABASE_AUTH_TOKEN = os.environ.get('DATABASE_AUTH_TOKEN')
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24).hex()) 
@@ -15,16 +17,16 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24).hex())
 # Check for required credentials (Crucial for Vercel deployment)
 if not DATABASE_URL or not DATABASE_AUTH_TOKEN:
     # This will cause a clean crash on startup if variables are missing
-    raise ValueError("FATAL: Database URL or Auth Token not set in Environment Variables.")
+    raise ValueError("FATAL: Database URL or Auth Token not set in Vercel Environment Variables.")
 
-# 2. Database Client Setup (Global access is necessary for a simple app)
+# 2. Database Client Setup (Global access to the client)
 try:
     TURSO_CLIENT = Client(url=DATABASE_URL, auth_token=DATABASE_AUTH_TOKEN)
 except Exception as e:
     raise RuntimeError(f"Failed to initialize Turso client: {e}")
 
 def execute_sql(sql_query, params=None):
-    """A helper function to safely execute SQL queries."""
+    """A helper function to safely execute SQL queries against Turso."""
     try:
         if params is None:
             return TURSO_CLIENT.execute(sql_query)
@@ -32,11 +34,11 @@ def execute_sql(sql_query, params=None):
             return TURSO_CLIENT.execute(sql_query, params)
     except Exception as e:
         print(f"Database Error: {e}")
-        # In a real app, you'd handle this better, but for deployment:
+        # Re-raise the error to be caught by the Flask route handler or startup process
         raise RuntimeError(f"SQL execution failed: {e}")
 
 def initialize_db():
-    """Ensure tables exist and load initial structure."""
+    """Ensures necessary tables are created and sets up default categories."""
     
     # Create Categories Table
     execute_sql("""
@@ -65,16 +67,15 @@ def initialize_db():
     # Insert default categories if none exist (Only on first run)
     default_categories = ["Food", "Travel", "Entertainment"]
     
-    # Check if we need to insert defaults (basic check)
+    # Check if we need to insert defaults
     existing_cats = execute_sql("SELECT COUNT(*) FROM categories").rows[0][0]
     if existing_cats == 0:
         for cat in default_categories:
             execute_sql("INSERT INTO categories (name) VALUES (?)", [cat])
             execute_sql("INSERT INTO budget (category, limit_amount) VALUES (?, 0.0)", [cat])
 
-# --- Rewritten Data Loading ---
 def load_app_data():
-    """Loads all application state from the database."""
+    """Loads all application state from the database into a dictionary."""
     
     # Load Categories
     categories_res = execute_sql("SELECT name FROM categories ORDER BY name ASC")
@@ -97,29 +98,28 @@ def load_app_data():
         "categories": categories
     }
 
-def save_data(data):
-    """Saves application state to DATA_FILE."""
-    with open(DATA_FILE, 'w') as f:
-        json.dump(data, f, indent=4)
-
-# Load initial data on application start
-app_data = load_data()
+# 3. Initialize DB and Load Data on Application Start
+initialize_db()
+app_data = load_app_data() # Load global application state from Turso
 
 # --- API Endpoints ---
 
 @app.route('/')
 def index():
-    """Renders the main single-page application template."""
+    """Renders the main single-page application template (requires index.html)."""
     return render_template('index.html')
 
 @app.route('/api/state', methods=['GET'])
 def get_state():
-    """Returns the current application state."""
+    """Returns the current application state from the in-memory global data."""
+    global app_data
+    # Re-fetch just in case data was modified in another thread (good practice)
+    app_data = load_app_data() 
     return jsonify(app_data)
 
 @app.route('/api/categories', methods=['POST'])
 def handle_categories():
-    """Adds or removes a category."""
+    """Adds or removes a category, persisting changes to Turso."""
     global app_data
     try:
         req_data = request.get_json()
@@ -132,32 +132,26 @@ def handle_categories():
         if action == 'add':
             if category_name in app_data['categories']:
                 return jsonify({"message": f"Category '{category_name}' already exists."}), 409
-            # 1. Update DB tables (new category and initial budget)
+            
+            # --- PERSISTENCE: Insert new category into DB ---
             execute_sql("INSERT INTO categories (name) VALUES (?)", [category_name])
             execute_sql("INSERT INTO budget (category, limit_amount) VALUES (?, 0.0)", [category_name])
             
-            # 2. Update the in-memory app_data object (Optional, but keeps state current)
-            app_data['categories'].append(category_name)
-            app_data['budget'][category_name] = 0.0 
-            
-            # Note: No separate save_data() call needed!
+            # Refresh global state
+            app_data = load_app_data()
             return jsonify({"message": f"Category '{category_name}' added.", "data": app_data})
         
         elif action == 'remove':
             if category_name not in app_data['categories']:
                 return jsonify({"message": f"Category '{category_name}' not found."}), 404
             
-            # Remove from categories list
-            app_data['categories'].remove(category_name)
-            
-            # Remove from budget map
-            if category_name in app_data['budget']:
-                del app_data['budget'][category_name]
-            
-            # Remove associated expenses (optional, but clean)
-            app_data['expenses'] = [e for e in app_data['expenses'] if e['category'] != category_name]
+            # --- PERSISTENCE: Delete from DB tables ---
+            execute_sql("DELETE FROM categories WHERE name = ?", [category_name])
+            execute_sql("DELETE FROM budget WHERE category = ?", [category_name])
+            execute_sql("DELETE FROM expenses WHERE category = ?", [category_name]) # Clean up associated expenses
 
-            save_data(app_data)
+            # Refresh global state
+            app_data = load_app_data()
             return jsonify({"message": f"Category '{category_name}' removed.", "data": app_data})
 
         return jsonify({"message": "Invalid category action."}), 400
@@ -168,12 +162,12 @@ def handle_categories():
 
 @app.route('/api/budget', methods=['POST'])
 def set_budget():
-    """Sets the monthly budget for categories."""
+    """Sets the monthly budget for categories, persisting changes to Turso."""
     global app_data
     try:
         new_budget = request.get_json()
         
-        # Validate that all keys are valid categories and values are numbers
+        # Validate and prepare budget update
         validated_budget = {}
         for cat in app_data['categories']:
             amount = new_budget.get(cat)
@@ -183,10 +177,16 @@ def set_budget():
                 except ValueError:
                     return jsonify({"message": f"Invalid amount provided for category '{cat}'."}), 400
             else:
+                # If amount is not explicitly provided, keep the old value
                 validated_budget[cat] = app_data['budget'].get(cat, 0.0)
 
-        app_data['budget'] = validated_budget
-        save_data(app_data)
+        # --- PERSISTENCE: Update/Insert all budgets into DB ---
+        for cat, amount in validated_budget.items():
+            # REPLACE INTO updates if key exists, inserts if key does not exist
+            execute_sql("REPLACE INTO budget (category, limit_amount) VALUES (?, ?)", [cat, amount])
+
+        # Refresh global state
+        app_data = load_app_data()
         return jsonify({"message": "Budget updated successfully!", "data": app_data})
 
     except Exception as e:
@@ -195,13 +195,14 @@ def set_budget():
 
 @app.route('/api/expense', methods=['POST'])
 def add_expense():
-    """Adds a new expense transaction."""
+    """Adds a new expense transaction, persisting to Turso."""
     global app_data
     try:
         req_data = request.get_json()
         category = req_data.get('category').strip().title()
         amount_str = req_data.get('amount')
         description = req_data.get('description', '').strip()
+        expense_id = str(uuid.uuid4())
 
         if category not in app_data['categories']:
             return jsonify({"message": f"Category '{category}' is not a recognized budget category."}), 400
@@ -216,42 +217,47 @@ def add_expense():
         date = datetime.now().strftime("%Y-%m-%d")
         
         new_expense = {
-            "id": str(uuid.uuid4()), # NEW: Assign a unique ID to the expense
+            "id": expense_id,
             "category": category,
             "amount": amount,
             "date": date,
             "description": description
         }
 
-        app_data['expenses'].append(new_expense)
-        save_data(app_data)
+        # --- PERSISTENCE: Insert new expense into DB ---
+        execute_sql("""
+            INSERT INTO expenses (id, category, amount, date, description)
+            VALUES (?, ?, ?, ?, ?)
+        """, [
+            new_expense['id'], 
+            new_expense['category'], 
+            new_expense['amount'], 
+            new_expense['date'], 
+            new_expense['description']
+        ])
+
+        # Refresh global state
+        app_data = load_app_data()
         return jsonify({"message": "Expense added successfully!", "data": new_expense})
 
     except Exception as e:
         print(f"Expense Error: {e}")
         return jsonify({"message": f"An error occurred: {str(e)}"}), 500
 
-# NEW ENDPOINT: Handle DELETE requests for expenses by ID
 @app.route('/api/expense/<expense_id>', methods=['DELETE'])
 def delete_expense_api(expense_id):
-    """Deletes an expense transaction by ID."""
+    """Deletes an expense transaction by ID, persisting change to Turso."""
     global app_data
     
-    # Store the initial length to check if a deletion occurred
-    original_length = len(app_data['expenses'])
-    
-    # Filter out the expense with the matching ID
-    # Note: expense IDs are expected to be strings (UUIDs)
-    app_data['expenses'] = [
-        e for e in app_data['expenses'] 
-        if e.get('id') != expense_id
-    ]
+    # --- PERSISTENCE: Delete from DB ---
+    result = execute_sql("DELETE FROM expenses WHERE id = ?", [expense_id])
 
-    # Check if the list length changed
-    if len(app_data['expenses']) == original_length:
+    # Check rows_affected to see if a deletion occurred
+    if result.rows_affected == 0:
         return jsonify({"message": f"Expense with ID {expense_id} not found."}), 404
 
-    save_data(app_data)
+    # Refresh global state
+    app_data = load_app_data()
     return jsonify({"message": "Expense successfully removed!"}), 200
 
 
@@ -259,6 +265,10 @@ def delete_expense_api(expense_id):
 def generate_report():
     """Calculates and returns the full expense report."""
     
+    # Reload data to ensure report is based on the latest DB state
+    global app_data
+    app_data = load_app_data()
+
     current_budget = app_data.get('budget', {})
     current_expenses = app_data.get('expenses', [])
     categories = app_data.get('categories', [])
@@ -297,13 +307,10 @@ def generate_report():
         "report": report, 
         "total_spent": total_spent, 
         "total_budget": total_budget,
-        "expenses_log": current_expenses # This now includes the unique 'id' field
+        "expenses_log": current_expenses 
     })
 
 
 if __name__ == '__main__':
-    # Ensure the data file exists on first run
-    if not os.path.exists(DATA_FILE):
-        save_data(initialize_data())
-    
+    # Standard Flask run, initialization is handled above the routes
     app.run(debug=True)
