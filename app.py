@@ -2,36 +2,99 @@ import json
 import os
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, redirect, url_for
-import uuid # NEW: Import UUID for unique expense IDs
+import uuid
+from turso import Client, ResultSet # Import the Turso client
 
 # --- Configuration and Data Persistence ---
 DATA_FILE = 'data.json'
 app = Flask(__name__)
-app.secret_key = 'super_secret_key' # For session management, though not used here
+DATABASE_URL = os.environ.get('DATABASE_URL') 
+DATABASE_AUTH_TOKEN = os.environ.get('DATABASE_AUTH_TOKEN')
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24).hex()) 
 
-def load_data():
-    """Loads application state (budget, expenses, categories) from DATA_FILE."""
-    if os.path.exists(DATA_FILE) and os.path.getsize(DATA_FILE) > 0:
-        with open(DATA_FILE, 'r') as f:
-            try:
-                data = json.load(f)
-                # Ensure existing expenses have an ID if they were loaded from old structure
-                for expense in data.get('expenses', []):
-                    if 'id' not in expense:
-                        expense['id'] = str(uuid.uuid4())
-                return data
-            except json.JSONDecodeError:
-                # Handle corrupted JSON file
-                print(f"Warning: {DATA_FILE} is corrupted. Starting with default data.")
-                return initialize_data()
-    return initialize_data()
+# Check for required credentials (Crucial for Vercel deployment)
+if not DATABASE_URL or not DATABASE_AUTH_TOKEN:
+    # This will cause a clean crash on startup if variables are missing
+    raise ValueError("FATAL: Database URL or Auth Token not set in Environment Variables.")
 
-def initialize_data():
-    """Sets up the initial state."""
+# 2. Database Client Setup (Global access is necessary for a simple app)
+try:
+    TURSO_CLIENT = Client(url=DATABASE_URL, auth_token=DATABASE_AUTH_TOKEN)
+except Exception as e:
+    raise RuntimeError(f"Failed to initialize Turso client: {e}")
+
+def execute_sql(sql_query, params=None):
+    """A helper function to safely execute SQL queries."""
+    try:
+        if params is None:
+            return TURSO_CLIENT.execute(sql_query)
+        else:
+            return TURSO_CLIENT.execute(sql_query, params)
+    except Exception as e:
+        print(f"Database Error: {e}")
+        # In a real app, you'd handle this better, but for deployment:
+        raise RuntimeError(f"SQL execution failed: {e}")
+
+def initialize_db():
+    """Ensure tables exist and load initial structure."""
+    
+    # Create Categories Table
+    execute_sql("""
+        CREATE TABLE IF NOT EXISTS categories (
+            name TEXT PRIMARY KEY NOT NULL
+        )
+    """)
+    # Create Expenses Table
+    execute_sql("""
+        CREATE TABLE IF NOT EXISTS expenses (
+            id TEXT PRIMARY KEY NOT NULL,
+            category TEXT NOT NULL,
+            amount REAL NOT NULL,
+            date TEXT NOT NULL,
+            description TEXT
+        )
+    """)
+    # Create Budget Table (Category and its budget limit)
+    execute_sql("""
+        CREATE TABLE IF NOT EXISTS budget (
+            category TEXT PRIMARY KEY NOT NULL,
+            limit_amount REAL NOT NULL
+        )
+    """)
+
+    # Insert default categories if none exist (Only on first run)
+    default_categories = ["Food", "Travel", "Entertainment"]
+    
+    # Check if we need to insert defaults (basic check)
+    existing_cats = execute_sql("SELECT COUNT(*) FROM categories").rows[0][0]
+    if existing_cats == 0:
+        for cat in default_categories:
+            execute_sql("INSERT INTO categories (name) VALUES (?)", [cat])
+            execute_sql("INSERT INTO budget (category, limit_amount) VALUES (?, 0.0)", [cat])
+
+# --- Rewritten Data Loading ---
+def load_app_data():
+    """Loads all application state from the database."""
+    
+    # Load Categories
+    categories_res = execute_sql("SELECT name FROM categories ORDER BY name ASC")
+    categories = [row[0] for row in categories_res.rows]
+    
+    # Load Budget
+    budget_res = execute_sql("SELECT category, limit_amount FROM budget")
+    budget = {row[0]: row[1] for row in budget_res.rows}
+    
+    # Load Expenses (Ordered by date, newest first)
+    expenses_res = execute_sql("SELECT id, category, amount, date, description FROM expenses ORDER BY date DESC")
+    expenses = [
+        {"id": row[0], "category": row[1], "amount": row[2], "date": row[3], "description": row[4]} 
+        for row in expenses_res.rows
+    ]
+    
     return {
-        "budget": {},
-        "expenses": [],
-        "categories": ["Food", "Travel", "Entertainment"]
+        "budget": budget,
+        "expenses": expenses,
+        "categories": categories
     }
 
 def save_data(data):
@@ -69,9 +132,15 @@ def handle_categories():
         if action == 'add':
             if category_name in app_data['categories']:
                 return jsonify({"message": f"Category '{category_name}' already exists."}), 409
+            # 1. Update DB tables (new category and initial budget)
+            execute_sql("INSERT INTO categories (name) VALUES (?)", [category_name])
+            execute_sql("INSERT INTO budget (category, limit_amount) VALUES (?, 0.0)", [category_name])
+            
+            # 2. Update the in-memory app_data object (Optional, but keeps state current)
             app_data['categories'].append(category_name)
-            app_data['budget'][category_name] = 0.0 # Initialize new category budget to zero
-            save_data(app_data)
+            app_data['budget'][category_name] = 0.0 
+            
+            # Note: No separate save_data() call needed!
             return jsonify({"message": f"Category '{category_name}' added.", "data": app_data})
         
         elif action == 'remove':
