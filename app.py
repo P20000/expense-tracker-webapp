@@ -1,9 +1,9 @@
 import os
 import uuid
 import json
+import requests
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, redirect, url_for
-from turso import Client, ResultSet # Import the Turso client
+from flask import Flask, render_template, request, jsonify
 
 # --- Configuration and Database Initialization ---
 
@@ -16,80 +16,104 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24).hex())
 
 # Check for required credentials (Crucial for Vercel deployment)
 if not DATABASE_URL or not DATABASE_AUTH_TOKEN:
-    # This will cause a clean crash on startup if variables are missing
     raise ValueError("FATAL: Database URL or Auth Token not set in Vercel Environment Variables.")
 
-# 2. Database Client Setup (Global access to the client)
-try:
-    TURSO_CLIENT = Client(url=DATABASE_URL, auth_token=DATABASE_AUTH_TOKEN)
-except Exception as e:
-    raise RuntimeError(f"Failed to initialize Turso client: {e}")
+# 2. Turso HTTP API Setup
+# Convert the libsql URL (e.g., libsql://...) to the HTTPS endpoint
+API_URL = DATABASE_URL.replace("libsql://", "https://")
 
 def execute_sql(sql_query, params=None):
-    """A helper function to safely execute SQL queries against Turso."""
+    """Executes a single SQL query via the Turso HTTP API using requests."""
+    
+    statements = [{"q": sql_query}]
+
     try:
-        if params is None:
-            return TURSO_CLIENT.execute(sql_query)
-        else:
-            return TURSO_CLIENT.execute(sql_query, params)
+        headers = {
+            "Authorization": f"Bearer {DATABASE_AUTH_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        # Send the query list to the Turso API endpoint
+        response = requests.post(f"{API_URL}", headers=headers, json={"statements": statements}, timeout=10)
+        response.raise_for_status() # Raises an HTTPError for bad responses (4xx or 5xx)
+        
+        data = response.json()
+        
+        if not data or not isinstance(data, list) or 'results' not in data[0]:
+            # Check for errors in the Turso response structure
+            if 'error' in data[0]:
+                 raise RuntimeError(f"Turso SQL Error: {data[0]['error']}")
+            
+            # Simplified result for DDL/DML operations where result might be minimal
+            return {"rows": [], "rows_affected": data[0].get('rows_affected', 0), "columns": []}
+
+        result = data[0]['results'] # Access the actual results array
+
+        if 'error' in result:
+            raise RuntimeError(f"Turso SQL Error: {result['error']}")
+
+        # Simplified result object for the application logic to consume
+        return {
+            "rows": result.get('rows', []),
+            "rows_affected": result.get('rows_affected', 0),
+            "columns": result.get('cols', [])
+        }
+        
+    except requests.exceptions.RequestException as e:
+        print(f"HTTP Request Error to Turso: {e}")
+        raise RuntimeError(f"Connection or request failed: {e}")
     except Exception as e:
-        print(f"Database Error: {e}")
-        # Re-raise the error to be caught by the Flask route handler or startup process
+        print(f"Database Execution Error: {e}")
         raise RuntimeError(f"SQL execution failed: {e}")
 
 def initialize_db():
     """Ensures necessary tables are created and sets up default categories."""
     
-    # Create Categories Table
-    execute_sql("""
-        CREATE TABLE IF NOT EXISTS categories (
-            name TEXT PRIMARY KEY NOT NULL
-        )
-    """)
-    # Create Expenses Table
-    execute_sql("""
-        CREATE TABLE IF NOT EXISTS expenses (
-            id TEXT PRIMARY KEY NOT NULL,
-            category TEXT NOT NULL,
-            amount REAL NOT NULL,
-            date TEXT NOT NULL,
-            description TEXT
-        )
-    """)
-    # Create Budget Table (Category and its budget limit)
-    execute_sql("""
-        CREATE TABLE IF NOT EXISTS budget (
-            category TEXT PRIMARY KEY NOT NULL,
-            limit_amount REAL NOT NULL
-        )
-    """)
-
-    # Insert default categories if none exist (Only on first run)
-    default_categories = ["Food", "Travel", "Entertainment"]
+    # We execute all initialization queries in one place for safety
+    statements = [
+        "CREATE TABLE IF NOT EXISTS categories (name TEXT PRIMARY KEY NOT NULL)",
+        "CREATE TABLE IF NOT EXISTS expenses (id TEXT PRIMARY KEY NOT NULL, category TEXT NOT NULL, amount REAL NOT NULL, date TEXT NOT NULL, description TEXT)",
+        "CREATE TABLE IF NOT EXISTS budget (category TEXT PRIMARY KEY NOT NULL, limit_amount REAL NOT NULL)"
+    ]
     
-    # Check if we need to insert defaults
-    existing_cats = execute_sql("SELECT COUNT(*) FROM categories").rows[0][0]
-    if existing_cats == 0:
-        for cat in default_categories:
-            execute_sql("INSERT INTO categories (name) VALUES (?)", [cat])
-            execute_sql("INSERT INTO budget (category, limit_amount) VALUES (?, 0.0)", [cat])
+    try:
+        # Run DDL statements
+        for q in statements:
+            execute_sql(q)
+
+        # Check if we need to insert defaults
+        existing_cats_res = execute_sql("SELECT COUNT(*) FROM categories")
+        # Extract count from the simplified result structure
+        existing_cats = existing_cats_res['rows'][0][0] if existing_cats_res['rows'] else 0
+        
+        # Insert default categories if none exist (Only on first run)
+        if existing_cats == 0:
+            default_categories = ["Food", "Travel", "Entertainment"]
+            for cat in default_categories:
+                execute_sql(f"INSERT INTO categories (name) VALUES ('{cat}')")
+                execute_sql(f"INSERT INTO budget (category, limit_amount) VALUES ('{cat}', 0.0)")
+
+    except Exception as e:
+        # Log the error but continue if possible (Vercel might be strict)
+        print(f"Database Initialization Warning: {e}")
+
 
 def load_app_data():
     """Loads all application state from the database into a dictionary."""
     
     # Load Categories
     categories_res = execute_sql("SELECT name FROM categories ORDER BY name ASC")
-    categories = [row[0] for row in categories_res.rows]
+    categories = [row[0] for row in categories_res['rows']]
     
     # Load Budget
     budget_res = execute_sql("SELECT category, limit_amount FROM budget")
-    budget = {row[0]: row[1] for row in budget_res.rows}
+    budget = {row[0]: row[1] for row in budget_res['rows']}
     
     # Load Expenses (Ordered by date, newest first)
     expenses_res = execute_sql("SELECT id, category, amount, date, description FROM expenses ORDER BY date DESC")
     expenses = [
         {"id": row[0], "category": row[1], "amount": row[2], "date": row[3], "description": row[4]} 
-        for row in expenses_res.rows
+        for row in expenses_res['rows']
     ]
     
     return {
@@ -111,9 +135,9 @@ def index():
 
 @app.route('/api/state', methods=['GET'])
 def get_state():
-    """Returns the current application state from the in-memory global data."""
+    """Returns the current application state from the database."""
     global app_data
-    # Re-fetch just in case data was modified in another thread (good practice)
+    # Re-fetch state from DB to ensure latest data is returned
     app_data = load_app_data() 
     return jsonify(app_data)
 
@@ -124,21 +148,22 @@ def handle_categories():
     try:
         req_data = request.get_json()
         action = req_data.get('action')
-        category_name = req_data.get('category').strip().title()
+        category_name = req_data.get('category').strip().title().replace("'", "''")
 
         if not category_name:
             return jsonify({"message": "Category name cannot be empty."}), 400
 
+        app_data = load_app_data() # Reload state
+        
         if action == 'add':
             if category_name in app_data['categories']:
                 return jsonify({"message": f"Category '{category_name}' already exists."}), 409
             
             # --- PERSISTENCE: Insert new category into DB ---
-            execute_sql("INSERT INTO categories (name) VALUES (?)", [category_name])
-            execute_sql("INSERT INTO budget (category, limit_amount) VALUES (?, 0.0)", [category_name])
+            execute_sql(f"INSERT INTO categories (name) VALUES ('{category_name}')")
+            execute_sql(f"INSERT INTO budget (category, limit_amount) VALUES ('{category_name}', 0.0)")
             
-            # Refresh global state
-            app_data = load_app_data()
+            app_data = load_app_data() # Refresh global state
             return jsonify({"message": f"Category '{category_name}' added.", "data": app_data})
         
         elif action == 'remove':
@@ -146,12 +171,11 @@ def handle_categories():
                 return jsonify({"message": f"Category '{category_name}' not found."}), 404
             
             # --- PERSISTENCE: Delete from DB tables ---
-            execute_sql("DELETE FROM categories WHERE name = ?", [category_name])
-            execute_sql("DELETE FROM budget WHERE category = ?", [category_name])
-            execute_sql("DELETE FROM expenses WHERE category = ?", [category_name]) # Clean up associated expenses
+            execute_sql(f"DELETE FROM categories WHERE name = '{category_name}'")
+            execute_sql(f"DELETE FROM budget WHERE category = '{category_name}'")
+            execute_sql(f"DELETE FROM expenses WHERE category = '{category_name}'")
 
-            # Refresh global state
-            app_data = load_app_data()
+            app_data = load_app_data() # Refresh global state
             return jsonify({"message": f"Category '{category_name}' removed.", "data": app_data})
 
         return jsonify({"message": "Invalid category action."}), 400
@@ -167,26 +191,25 @@ def set_budget():
     try:
         new_budget = request.get_json()
         
-        # Validate and prepare budget update
+        app_data = load_app_data() # Reload state
         validated_budget = {}
+        
         for cat in app_data['categories']:
             amount = new_budget.get(cat)
             if amount is not None:
                 try:
-                    validated_budget[cat] = float(amount)
+                    amount = float(amount)
+                    validated_budget[cat] = amount
                 except ValueError:
                     return jsonify({"message": f"Invalid amount provided for category '{cat}'."}), 400
             else:
-                # If amount is not explicitly provided, keep the old value
                 validated_budget[cat] = app_data['budget'].get(cat, 0.0)
 
         # --- PERSISTENCE: Update/Insert all budgets into DB ---
         for cat, amount in validated_budget.items():
-            # REPLACE INTO updates if key exists, inserts if key does not exist
-            execute_sql("REPLACE INTO budget (category, limit_amount) VALUES (?, ?)", [cat, amount])
+            execute_sql(f"REPLACE INTO budget (category, limit_amount) VALUES ('{cat}', {amount})")
 
-        # Refresh global state
-        app_data = load_app_data()
+        app_data = load_app_data() # Refresh global state
         return jsonify({"message": "Budget updated successfully!", "data": app_data})
 
     except Exception as e:
@@ -201,9 +224,11 @@ def add_expense():
         req_data = request.get_json()
         category = req_data.get('category').strip().title()
         amount_str = req_data.get('amount')
-        description = req_data.get('description', '').strip()
+        description = req_data.get('description', '').strip().replace("'", "''") # Basic SQL escaping
         expense_id = str(uuid.uuid4())
 
+        app_data = load_app_data() # Reload state
+        
         if category not in app_data['categories']:
             return jsonify({"message": f"Category '{category}' is not a recognized budget category."}), 400
         
@@ -216,29 +241,14 @@ def add_expense():
 
         date = datetime.now().strftime("%Y-%m-%d")
         
-        new_expense = {
-            "id": expense_id,
-            "category": category,
-            "amount": amount,
-            "date": date,
-            "description": description
-        }
-
         # --- PERSISTENCE: Insert new expense into DB ---
-        execute_sql("""
+        execute_sql(f"""
             INSERT INTO expenses (id, category, amount, date, description)
-            VALUES (?, ?, ?, ?, ?)
-        """, [
-            new_expense['id'], 
-            new_expense['category'], 
-            new_expense['amount'], 
-            new_expense['date'], 
-            new_expense['description']
-        ])
+            VALUES ('{expense_id}', '{category}', {amount}, '{date}', '{description}')
+        """)
 
-        # Refresh global state
-        app_data = load_app_data()
-        return jsonify({"message": "Expense added successfully!", "data": new_expense})
+        app_data = load_app_data() # Refresh global state
+        return jsonify({"message": "Expense added successfully!", "data": app_data['expenses'][0]}) # Return the newest expense
 
     except Exception as e:
         print(f"Expense Error: {e}")
@@ -250,14 +260,12 @@ def delete_expense_api(expense_id):
     global app_data
     
     # --- PERSISTENCE: Delete from DB ---
-    result = execute_sql("DELETE FROM expenses WHERE id = ?", [expense_id])
+    result = execute_sql(f"DELETE FROM expenses WHERE id = '{expense_id}'")
 
-    # Check rows_affected to see if a deletion occurred
-    if result.rows_affected == 0:
+    if result.get('rows_affected', 0) == 0:
         return jsonify({"message": f"Expense with ID {expense_id} not found."}), 404
 
-    # Refresh global state
-    app_data = load_app_data()
+    app_data = load_app_data() # Refresh global state
     return jsonify({"message": "Expense successfully removed!"}), 200
 
 
@@ -265,9 +273,8 @@ def delete_expense_api(expense_id):
 def generate_report():
     """Calculates and returns the full expense report."""
     
-    # Reload data to ensure report is based on the latest DB state
     global app_data
-    app_data = load_app_data()
+    app_data = load_app_data() # Always reload data for the report
 
     current_budget = app_data.get('budget', {})
     current_expenses = app_data.get('expenses', [])
@@ -280,7 +287,6 @@ def generate_report():
         cat = entry.get("category")
         amt = entry.get("amount", 0.0)
         
-        # Only count if the category is still active/budgeted
         if cat in categories:
             spent_by_category[cat] = spent_by_category.get(cat, 0) + amt
             total_spent += amt
