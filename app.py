@@ -4,7 +4,6 @@ import uuid
 import requests
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
-
 # --- Configuration and Database Initialization ---
 
 app = Flask(__name__)
