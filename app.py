@@ -24,10 +24,14 @@ def add_security_headers(response):
 
     # Content Security Policy (CSP)
     csp = (
-        "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; "
-        "upgrade-insecure-requests; img-src 'self' https://imagedelivery.net data:; "
-        "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; font-src 'self' data:;"
-    )
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "img-src 'self' https://placehold.co https://imagedelivery.net data:; "
+    "font-src 'self' https://fonts.gstatic.com; "
+    "object-src 'none'; frame-ancestors 'none'; "
+    "upgrade-insecure-requests;"
+)
     response.headers['Content-Security-Policy'] = csp
     
     return response
@@ -35,7 +39,7 @@ def add_security_headers(response):
 # 1. Load Secure Environment Variables
 DATABASE_URL = os.environ.get('DATABASE_URL') 
 DATABASE_AUTH_TOKEN = os.environ.get('DATABASE_AUTH_TOKEN')
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24).hex()) 
+app.secret_key = os.urandom(24).hex() 
 
 # 2. Turso HTTP API Setup
 # Convert the libsql URL (e.g., libsql://...) to the HTTPS endpoint
