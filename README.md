@@ -79,14 +79,10 @@ http://127.0.0.1:5000/
 expense-tracker-webapp/
 ├── app.py              # Main Flask application file
 ├── templates/          # HTML templates used by Flask
-│   ├── home.html
-│   ├── set_budget.html
-│   ├── add_expense.html
-│   └── report.html
-├── static/             # Static files, e.g. CSS (optional)
-│   └── style.css
+│   ├── index.html
 ├── expenditure.json    # JSON file storing all expense records
 └── README.md           # Project README (this file)
+└── Dockerfile
 ```
 
 ---
