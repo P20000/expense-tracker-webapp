@@ -9,18 +9,37 @@ from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
 
+@app.after_request
+def add_security_headers(response):
+    """
+    Adds all necessary security and privacy HTTP headers to every response.
+    """
+    # Security & privacy headers
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Permissions-Policy'] = 'geolocation=(), camera=(), microphone=(), payment=()'
+    response.headers['Cross-Origin-Opener-Policy'] = 'same-origin'
+
+    # Content Security Policy (CSP)
+    csp = (
+        "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; "
+        "upgrade-insecure-requests; img-src 'self' https://imagedelivery.net data:; "
+        "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; font-src 'self' data:;"
+    )
+    response.headers['Content-Security-Policy'] = csp
+    
+    return response
+
 # 1. Load Secure Environment Variables
 DATABASE_URL = os.environ.get('DATABASE_URL') 
 DATABASE_AUTH_TOKEN = os.environ.get('DATABASE_AUTH_TOKEN')
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24).hex()) 
 
-# Check for required credentials (Crucial for Vercel deployment)
-if not DATABASE_URL or not DATABASE_AUTH_TOKEN:
-    raise ValueError("FATAL: Database URL or Auth Token not set in Vercel Environment Variables.")
-
 # 2. Turso HTTP API Setup
 # Convert the libsql URL (e.g., libsql://...) to the HTTPS endpoint
-API_URL = DATABASE_URL.replace("libsql://", "https://")
+API_URL = DATABASE_URL.replace("libsql://", "https://") if DATABASE_URL else ""
 
 def execute_sql(sql_query, params=None):
     """Executes a single SQL query via the Turso HTTP API using requests."""
