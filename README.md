@@ -4,6 +4,8 @@
 This is a Flask-based web application for tracking monthly budgets and expenses. The app allows users to set budgets in categories like Food, Travel, and Entertainment, add daily expenses against these categories, and view detailed reports comparing spending versus budget limits.
 
 Built with Python and Flask, this project serves as both a practical personal finance tool and a college-level assignment demonstrating web development, data persistence, and user interaction.
+link: https://expense-tracker-webapp-one.vercel.app/
+<img width="1062" height="635" alt="image" src="https://github.com/user-attachments/assets/bab0fb55-5b91-4190-a698-161e657a5560" />
 
 ---
 
